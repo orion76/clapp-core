@@ -1,0 +1,62 @@
+{
+  "name": "@clapp/core",
+  "version": "0.0.7-alpha.5",
+  "type": "module",
+  "description": "TypeScript CLI library with Commander and plugin system",
+  "license": "MIT",
+  "author": "Paul Glazkow",
+  "files": [
+    "dist",
+    "docs"
+  ],
+  "exports": {
+    ".": {
+      "default": "./dist/clapp-core.js",
+      "types": "./dist/clapp-core.d.ts"
+    }
+  },
+  "keywords": [
+    "cli",
+    "typescript",
+    "commander",
+    "plugin-system",
+    "library"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/orion76/clapp.git",
+    "directory": "packages/clapp"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "scripts": {
+    "build": "npm run clean && rollup -c",
+    "watch": "npm run clean && tsc --watch",
+    "clean": "rm -rf dist",
+    "pack": "npm pack",
+    "prepublishOnly": "npm run build",
+    "test": "echo tests for clapp!",
+    "install-libs": "./scripts/install.sh",
+    "il": "npm run install-libs"
+  },
+  "peerDependencies": {
+    "@clapp/command": "^0.0.3-alpha.1",
+    "@clapp/utils": "^0.0.4",
+    "@orion76/plugin": "^0.1.19",
+    "commander": "^14.0.2"
+  },
+  "devDependencies": {
+    "@rollup/plugin-alias": "^6.0.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "@types/node": "^24.10.1",
+    "rollup": "^4.57.0",
+    "rollup-plugin-dts": "^6.3.0",
+    "rollup-plugin-tsconfig-paths": "^1.5.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "tslib": "^2.4.0"
+  }
+}
