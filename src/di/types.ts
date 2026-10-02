@@ -1,4 +1,4 @@
-import { Type } from '../types';
+import { Type } from '@clapp/common';
 
 export interface IProvider {
     provide: string;

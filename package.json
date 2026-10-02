@@ -1,6 +1,6 @@
 {
   "name": "@clapp/core",
-  "version": "0.0.7-alpha.5",
+  "version": "0.0.7-alpha.16",
   "type": "module",
   "description": "TypeScript CLI library with Commander and plugin system",
   "license": "MIT",
@@ -41,9 +41,10 @@
     "il": "npm run install-libs"
   },
   "peerDependencies": {
-    "@clapp/command": "^0.0.3-alpha.1",
+    "@clapp/command": "^0.0.3-alpha.14",
+    "@clapp/common": "^0.0.1",
     "@clapp/utils": "^0.0.4",
-    "@orion76/plugin": "^0.1.19",
+    "@orion76/plugin": "^0.2.2",
     "commander": "^14.0.2"
   },
   "devDependencies": {

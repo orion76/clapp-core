@@ -4,8 +4,8 @@ export function getStartDirectories(projects: string[]): string[] {
   return getRootDirectoies(projects);
 }
 function getRootDirectoies(paths: string[]): string[] {
-  if (paths.length <= 1) {
-    return paths;
+  if (paths.length === 0) {
+    return [];
   }
 
   const uniquePaths = [...new Set(paths)];
@@ -17,24 +17,4 @@ function getRootDirectoies(paths: string[]): string[] {
   });
 
   return rootPaths;
-}
-function _getRootDirectoies(paths: string[]): string[] {
-  let root: string[] = [];
-  paths.forEach((p1) => {
-    paths.forEach((p2) => {
-      if (isFileInside(p1, p2)) {
-        root.push(p2);
-        return;
-      }
-      if (isFileInside(p2, p1)) {
-        root.push(p1);
-        return;
-      }
-    });
-  });
-  if (paths.length > root.length) {
-    return getRootDirectoies(root);
-  } else {
-    return root;
-  }
 }

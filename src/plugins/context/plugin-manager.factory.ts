@@ -1,4 +1,4 @@
-import { IPluginDiscoveryConfig } from '../../types';
+import { IPluginDiscoveryConfig } from '../../../../common/src/types';
 import { ContextPluginBuilder } from './plugin-builder';
 import { PluginDiscovery } from './plugin-discovery/plugin-discovery';
 import { PluginManager } from './plugin-manager';

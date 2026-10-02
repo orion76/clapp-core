@@ -1,6 +1,6 @@
 import { IPluginBuilder, IPluginDiscovery, PluginManagerBase } from '@orion76/plugin';
+import { IPluginCommand, PLUGIN_COMMAND_TYPE, IPluginCommandDefinition } from '@clapp/common';
 
-import { IPluginCommand, IPluginCommandDefinition, PLUGIN_COMMAND_TYPE } from '@clapp/command';
 
 /**
  * Plugin manager for commands

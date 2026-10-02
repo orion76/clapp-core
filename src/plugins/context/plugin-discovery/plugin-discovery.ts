@@ -1,9 +1,7 @@
-import { IPluginDiscoveryConfig } from '../../../types';
+import { IPluginDiscoveryConfig } from '../../../../../common/src/types';
 import { CommandPluginDiscoveryBase } from '../../common/plugin-discovery/plugin-discovery.base';
 import { PLUGIN_CONTEXT_TYPE } from '../plugin';
 import { IPluginContextDefinition } from '../types';
-
-
 
 /**
  * Plugin discovery for commands
@@ -13,8 +11,11 @@ export class PluginDiscovery extends CommandPluginDiscoveryBase<IPluginContextDe
   type: string = PLUGIN_CONTEXT_TYPE;
   constructor(
     protected projects: string[],
-    protected config: IPluginDiscoveryConfig
+    protected config: IPluginDiscoveryConfig,
   ) {
     super();
+  }
+  async initialize(): Promise<void> {
+    this.definitions = await this.getDefinitions();
   }
 }

@@ -1,4 +1,7 @@
-import { CLIConfig, IPluginDiscoveryConfig } from '../../types';
+
+
+
+import { IPluginDiscoveryConfig } from '@clapp/common';
 import { CommandPluginBuilder } from './plugin-builder';
 import { CommandPluginDiscovery } from './plugin-discovery/plugin-discovery';
 import { CommandPluginManager } from './plugin-manager';

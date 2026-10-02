@@ -1,16 +1,20 @@
 import { Argument, Command, createOption, Option } from 'commander';
 
+import { IPluginManager } from '@orion76/plugin';
+import { getLogger } from './logger-init';
+import { createPluginManager } from './plugins/command';
 import {
+  CLIConfig,
+  IClapp,
   ICommandArgument,
   ICommandDefintion,
   ICommandOption,
   IPluginCommand,
   IPluginCommandDefinition,
-} from '@clapp/command';
-import { IPluginManager } from '@orion76/plugin';
-import { getLogger } from './logger-init';
-import { createPluginManager } from './plugins/command';
-import { CLIConfig, IClapp } from './types';
+  isCommand,
+  isMainCommand,
+  UPluginCommandDefinition,
+} from '@clapp/common';
 
 const logger = getLogger('clapp_cli');
 /**
@@ -43,6 +47,7 @@ export class Clapp implements IClapp {
     const { name, description, version } = this.config;
     program //
       .name(name)
+      .configureHelp({ sortSubcommands: true })
       .description(description)
       .version(version);
 
@@ -71,6 +76,7 @@ export class Clapp implements IClapp {
   private createCommand(name: string, description: string, config: ICommandDefintion) {
     logger.send(['[CLAPP] createCommand', name]);
     const command = this.program.command(name);
+
     command.description(description);
 
     if (config.aliases && config.aliases.length > 0) {
@@ -96,32 +102,45 @@ export class Clapp implements IClapp {
     return command;
   }
 
-  createCommands(commandDefinitions: IPluginCommandDefinition[]) {
-    return commandDefinitions.map(({ id, label, command: commandDefinition, config, commands }) => {
-      const description = commandDefinition.description ?? label;
-      const commandPlugin = this.createCommand(id, description, commandDefinition);
-      commandPlugin.action(async (...allArgs: any[]) => {
-        try {
-          const { name, args, opts } = this.parseCommandArgs(allArgs);
-          const plugin = this.pluginManager.getInstance(name);
-          logger.send(['createCommands', { args, opts }]);
-          if (typeof plugin.action === 'function') {
-            const pluginArgs = plugin.getArguments(args, opts);
-            const result: any = plugin.action(pluginArgs);
-            if (result && typeof result.then === 'function') {
-              await result;
-            }
+  private _createCommand(definition: IPluginCommandDefinition) {
+    const { id, label, command: commandDefinitin } = definition;
+    const description = label;
+    const commandPlugin = this.createCommand(id, description, commandDefinitin);
+    commandPlugin.action(async (...allArgs: any[]) => {
+      try {
+        const { name, args, opts } = this.parseCommandArgs(allArgs);
+        const plugin = this.pluginManager.getInstance(name);
+        logger.send(['createCommands', { args, opts }]);
+        if (typeof plugin.action === 'function') {
+          const pluginArgs = plugin.getArguments(args, opts);
+          const result: any = plugin.action(pluginArgs);
+          if (result && typeof result.then === 'function') {
+            await result;
           }
-          process.exit(0);
-        } catch (error) {
-          logger.send(['Command execution error:', error], 'error');
-          process.exit(1);
         }
-      });
-      if (commands) {
-        this.createCommands(commands).forEach((sub) => commandPlugin.addCommand(sub));
+        process.exit(0);
+      } catch (error) {
+        logger.send(['Command execution error:', error], 'error');
+        process.exit(1);
       }
-      return commandPlugin;
+    });
+    return commandPlugin;
+  }
+
+  createCommands(commandDefinitions: UPluginCommandDefinition[]) {
+    return commandDefinitions.map((definition) => {
+      if (isCommand(definition)) {
+        return this._createCommand(definition);
+      }
+
+      if (isMainCommand(definition)) {
+        const { commands, id, label } = definition;
+        const commandPlugin = this.program.command(id);
+        commandPlugin.description(label);
+        this.createCommands(commands).forEach((sub) => commandPlugin.addCommand(sub));
+        return commandPlugin;
+      }
+      throw new Error('Command definitioni is failure');
     });
   }
 

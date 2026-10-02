@@ -4,9 +4,11 @@ import * as path from 'path';
 
 import { getProjectRoot, getUserProfileDirectory, isString, loadPackageJson } from '@clapp/utils';
 
-import { IPluginDiscoveryConfig } from '../../../types';
+
 
 import { getStartDirectories } from './utils';
+import { isNotEmptyString } from 'packages/core/src/utils';
+import { IPluginDiscoveryConfig } from '@clapp/common';
 
 /**
  * Plugin discovery for commands
@@ -73,12 +75,13 @@ export abstract class CommandPluginDiscoveryBase<D extends IPluginDefinition> ex
     const projects = [...this.projects, process.cwd()];
     const startDirectories = getStartDirectories(projects);
 
-    const { isAvailableProjectCheck } = this.config;
+    const { projectAvailableCheckFn } = this.config;
     const commandPaths = startDirectories
       .map((startDirectory) => getProjectRoot(startDirectory, searchDir))
+      .filter(isNotEmptyString)
       .filter((projectRoot) => {
         const packageJson = loadPackageJson(path.join(projectRoot));
-        return packageJson ? isAvailableProjectCheck(packageJson) : false;
+        return packageJson ? projectAvailableCheckFn(packageJson) : false;
       })
       .map((projectRoot) => {
         const commandPath = path.join(projectRoot, commandsDirectory);
