@@ -44,7 +44,7 @@
     "@clapp/command": "^0.0.3-alpha.14",
     "@clapp/common": "^0.0.1",
     "@clapp/utils": "^0.0.4",
-    "@orion76/plugin": "^0.2.2",
+    "@orion76/plugin": "^0.2.3",
     "commander": "^14.0.2"
   },
   "devDependencies": {
