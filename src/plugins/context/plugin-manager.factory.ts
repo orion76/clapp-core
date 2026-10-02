@@ -1,4 +1,4 @@
-import { IPluginDiscoveryConfig } from '../../../../common/src/types';
+import { IPluginDiscoveryConfig } from '@clapp/common';
 import { ContextPluginBuilder } from './plugin-builder';
 import { PluginDiscovery } from './plugin-discovery/plugin-discovery';
 import { PluginManager } from './plugin-manager';

@@ -1,4 +1,4 @@
-import { IPluginDefinition, PluginDiscoveryAsyncBase } from '@orion76/plugin';
+import { IPluginDefinition, PluginDiscoveryAsync } from '@orion76/plugin';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -7,27 +7,18 @@ import { getProjectRoot, getUserProfileDirectory, isString, loadPackageJson } fr
 
 
 import { getStartDirectories } from './utils';
-import { isNotEmptyString } from 'packages/core/src/utils';
+import { isNotEmptyString } from '../../../utils';
 import { IPluginDiscoveryConfig } from '@clapp/common';
 
 /**
  * Plugin discovery for commands
  * Loads command configurations from files and converts them to plugin definitions
  */
-export abstract class CommandPluginDiscoveryBase<D extends IPluginDefinition> extends PluginDiscoveryAsyncBase<D> {
-  abstract type: string;
+export abstract class CommandPluginDiscoveryBase<D extends IPluginDefinition> extends PluginDiscoveryAsync<D> {
   protected abstract projects: string[];
   protected abstract config: IPluginDiscoveryConfig;
 
-  protected definitions: D[] = [];
-
-  async getDefinitions(): Promise<D[]> {
-    if (!this.definitions) {
-      this.definitions = await this.findDefinitions();
-    }
-    return this.definitions;
-  }
-  async findDefinitions(): Promise<D[]> {
+  protected async loadDefinitions(): Promise<D[]> {
     const definitionFiles = this.findDefinitionFileNames();
 
     const configPromises = definitionFiles.map((filePath) => this.loadCommandFromFile(filePath));

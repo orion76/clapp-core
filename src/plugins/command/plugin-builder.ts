@@ -1,8 +1,8 @@
 import { IPluginCommand, IPluginCommandDefinition } from '@clapp/command';
-import { PluginBuilderBase } from '@orion76/plugin';
+import { PluginBuilderBaseAsync } from '@orion76/plugin';
 
-export class CommandPluginBuilder extends PluginBuilderBase<IPluginCommand> {
-  build(definition: IPluginCommandDefinition): IPluginCommand {
+export class CommandPluginBuilder extends PluginBuilderBaseAsync<IPluginCommand> {
+  async build(definition: IPluginCommandDefinition): Promise<IPluginCommand> {
     const { pluginClass, id } = definition;
     if (!pluginClass) {
       throw new Error(`[Command plugin] "pluginClass" for plugin: ${id} is missing.`);

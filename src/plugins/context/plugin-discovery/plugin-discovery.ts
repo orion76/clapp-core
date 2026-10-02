@@ -1,4 +1,4 @@
-import { IPluginDiscoveryConfig } from '../../../../../common/src/types';
+import { IPluginDiscoveryConfig } from '@clapp/common';
 import { CommandPluginDiscoveryBase } from '../../common/plugin-discovery/plugin-discovery.base';
 import { PLUGIN_CONTEXT_TYPE } from '../plugin';
 import { IPluginContextDefinition } from '../types';
@@ -14,8 +14,5 @@ export class PluginDiscovery extends CommandPluginDiscoveryBase<IPluginContextDe
     protected config: IPluginDiscoveryConfig,
   ) {
     super();
-  }
-  async initialize(): Promise<void> {
-    this.definitions = await this.getDefinitions();
   }
 }

@@ -1,7 +1,7 @@
 
 
 import { IPluginCommandDefinition, IPluginDiscoveryConfig, PLUGIN_COMMAND_TYPE } from '@clapp/common';
-import { getLogger } from 'packages/core/src/logger-init';
+import { getLogger } from '../../../logger-init';
 import { CommandPluginDiscoveryBase } from '../../common/plugin-discovery/plugin-discovery.base';
 
 
@@ -19,10 +19,5 @@ export class CommandPluginDiscovery extends CommandPluginDiscoveryBase<IPluginCo
     protected config: IPluginDiscoveryConfig,
   ) {
     super();
-    // Don't load definitions in constructor anymore
-  }
-
-  async initialize(): Promise<void> {
-    this.definitions = await this.getDefinitions();
   }
 }

@@ -8,7 +8,6 @@ import { CommandPluginManager } from './plugin-manager';
 
 export async function createPluginManager(projects: string[], config: IPluginDiscoveryConfig) {
   const pluginDiscovery = new CommandPluginDiscovery(projects, config);
-  await pluginDiscovery.initialize();
 
   const pluginBuilder = new CommandPluginBuilder();
 

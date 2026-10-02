@@ -1,4 +1,4 @@
-import { IPlugin, PluginManagerAsyncBase } from '@orion76/plugin';
+import { IPlugin, PluginManagerBaseAsync } from '@orion76/plugin';
 
 export interface ICommandPluginManager<P extends IPlugin> {
   getDefinition(id: string): Promise<P['definition']>;
@@ -7,7 +7,7 @@ export interface ICommandPluginManager<P extends IPlugin> {
 }
 
 export abstract class CommandPluginManagerBase<P extends IPlugin>
-  extends PluginManagerAsyncBase<P>
+  extends PluginManagerBaseAsync<P>
   implements ICommandPluginManager<P>
 {
 

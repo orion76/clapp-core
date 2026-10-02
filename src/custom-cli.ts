@@ -1,6 +1,6 @@
 import { Argument, Command, createOption, Option } from 'commander';
 
-import { IPluginManager } from '@orion76/plugin';
+import { IPluginManagerAsync } from '@orion76/plugin';
 import { getLogger } from './logger-init';
 import { createPluginManager } from './plugins/command';
 import {
@@ -23,7 +23,7 @@ const logger = getLogger('clapp_cli');
 export class Clapp implements IClapp {
   private program: Command;
 
-  private pluginManager!: IPluginManager<IPluginCommand>;
+  private pluginManager!: IPluginManagerAsync<IPluginCommand>;
 
   constructor(private config: CLIConfig) {
     logger.send(['--- Creating CLI application:', config.name]);
@@ -35,7 +35,7 @@ export class Clapp implements IClapp {
    */
   async initialize(): Promise<void> {
     this.pluginManager = await createPluginManager(this.config.projects, this.config.commandDiscovery);
-    const commandDefinitions = this.pluginManager.getDefinitions();
+    const commandDefinitions = await this.pluginManager.getDefinitions();
     this.createCommands(commandDefinitions);
   }
 
@@ -109,7 +109,7 @@ export class Clapp implements IClapp {
     commandPlugin.action(async (...allArgs: any[]) => {
       try {
         const { name, args, opts } = this.parseCommandArgs(allArgs);
-        const plugin = this.pluginManager.getInstance(name);
+        const plugin = await this.pluginManager.getInstance(name);
         logger.send(['createCommands', { args, opts }]);
         if (typeof plugin.action === 'function') {
           const pluginArgs = plugin.getArguments(args, opts);
