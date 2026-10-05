@@ -28,7 +28,7 @@
     "directory": "packages/clapp"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "build": "npm run clean && rollup -c",
@@ -37,6 +37,7 @@
     "pack": "npm pack",
     "prepublishOnly": "npm run build",
     "test": "echo tests for clapp!",
+    "test:jest": "jest",
     "install-libs": "./scripts/install.sh",
     "il": "npm run install-libs"
   },
@@ -51,13 +52,20 @@
     "@rollup/plugin-alias": "^6.0.0",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-typescript": "^12.3.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.10.1",
+    "jest": "^30.2.0",
     "rollup": "^4.57.0",
     "rollup-plugin-dts": "^6.3.0",
     "rollup-plugin-tsconfig-paths": "^1.5.2",
+    "ts-jest": "^29.4.5",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "tslib": "^2.4.0"
+    "@orion76/node-plugin": "^0.0.1",
+    "reflect-metadata": "^0.2.2",
+    "tslib": "^2.4.0",
+    "tsx": "^4.20.6",
+    "tsyringe": "^4.10.0"
   }
 }

@@ -1,3 +1,5 @@
+import 'reflect-metadata';
+
 export { Clapp } from './custom-cli';
 export * from '@clapp/common';
 export * from './plugins/command';
