@@ -45,8 +45,9 @@
     "@clapp/command": "^0.0.3-alpha.14",
     "@clapp/common": "^0.0.1",
     "@clapp/utils": "^0.0.4",
-    "@orion76/plugin": "^0.2.3",
-    "commander": "^14.0.2"
+    "commander": "^14.0.2",
+    "inversify": "^8.2.3",
+    "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
     "@rollup/plugin-alias": "^6.0.0",
@@ -62,10 +63,9 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@orion76/node-plugin": "^0.0.1",
+    "@orion76/node-plugin": "^0.2.0",
     "reflect-metadata": "^0.2.2",
     "tslib": "^2.4.0",
-    "tsx": "^4.20.6",
-    "tsyringe": "^4.10.0"
+    "tsx": "^4.20.6"
   }
 }

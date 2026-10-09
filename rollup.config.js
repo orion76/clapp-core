@@ -13,8 +13,9 @@ const distRoot = 'dist'
 const libName = 'core';
 const bundleName = `clapp-${libName}`;
 
-const NODE_EXTERNAL = ['fs', 'path'];
-const EXTERNAL = [...Object.keys(pkg.dependencies), ...Object.keys(pkg.peerDependencies), ...NODE_EXTERNAL]
+const NODE_EXTERNAL = ['fs', 'path', 'url'];
+const RUNTIME_EXTERNAL = ['tsx/esm/api'];
+const EXTERNAL = [...Object.keys(pkg.dependencies), ...Object.keys(pkg.peerDependencies), ...NODE_EXTERNAL, ...RUNTIME_EXTERNAL]
 export default [
   // JavaScript bundle
   {

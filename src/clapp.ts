@@ -1,16 +1,22 @@
 import { Argument, Command, createOption, Option } from 'commander';
+import { providePluginManager, rootContainer, type IPluginManager } from '@orion76/node-plugin';
+import { Container, inject, injectable, type ServiceIdentifier } from 'inversify';
 
-import { IPluginManagerAsync } from '@orion76/plugin';
 import { getLogger } from './logger-init';
-import { createPluginManager } from './plugins/command';
+import { CLI_CONFIG_TOKEN, COMMAND_MANAGER_TOKEN } from './plugins/tokens';
+import { EventBus } from './events/event-bus';
+import { ensureTsLoader } from './utils';
 import {
   CLIConfig,
+  EVENT_BUS_TOKEN,
   IClapp,
   ICommandArgument,
   ICommandDefintion,
   ICommandOption,
+  IEventBus,
   IPluginCommand,
   IPluginCommandDefinition,
+  PLUGIN_COMMAND_TYPE,
   isCommand,
   isMainCommand,
   UPluginCommandDefinition,
@@ -20,12 +26,16 @@ const logger = getLogger('clapp_cli');
 /**
  * Main class for creating CLI applications
  */
+@injectable()
 export class Clapp implements IClapp {
   private program: Command;
 
-  private pluginManager!: IPluginManagerAsync<IPluginCommand>;
+  private pluginManager!: IPluginManager<IPluginCommand>;
 
-  constructor(private config: CLIConfig) {
+  constructor(
+    @inject(CLI_CONFIG_TOKEN) private config: CLIConfig,
+    @inject(EVENT_BUS_TOKEN) private eventBus: IEventBus,
+  ) {
     logger.send(['--- Creating CLI application:', config.name]);
     this.program = this.createProgram();
   }
@@ -34,7 +44,15 @@ export class Clapp implements IClapp {
    * Initialize the CLI application asynchronously
    */
   async initialize(): Promise<void> {
-    this.pluginManager = await createPluginManager(this.config.projects, this.config.commandDiscovery);
+    await ensureTsLoader();
+    providePluginManager<IPluginCommand>(
+      PLUGIN_COMMAND_TYPE,
+      COMMAND_MANAGER_TOKEN as ServiceIdentifier<IPluginManager<IPluginCommand>>,
+      {
+        config: this.config.commandDiscovery ?? { patterns: [] },
+      },
+    );
+    this.pluginManager = rootContainer.get(COMMAND_MANAGER_TOKEN);
     const commandDefinitions = await this.pluginManager.getDefinitions();
     this.createCommands(commandDefinitions);
   }
@@ -43,6 +61,7 @@ export class Clapp implements IClapp {
    * Sets up basic Commander program parameters
    */
   private createProgram(): Command {
+    this.eventBus.emit('app:create',this.config)
     const program = new Command();
     const { name, description, version } = this.config;
     program //
@@ -68,7 +87,15 @@ export class Clapp implements IClapp {
    * @returns Promise that resolves to initialized CLI instance
    */
   public static async create(config: CLIConfig): Promise<Clapp> {
-    const cli = new Clapp(config);
+    if (!rootContainer.isBound(EVENT_BUS_TOKEN)) {
+      rootContainer.bind(EVENT_BUS_TOKEN).to(EventBus).inSingletonScope();
+    }
+
+    const scope = new Container({ parent: rootContainer });
+    scope.bind(CLI_CONFIG_TOKEN).toConstantValue(config);
+    scope.bind(Clapp).toSelf();
+
+    const cli = scope.get(Clapp);
     await cli.initialize();
     return cli;
   }
@@ -107,20 +134,22 @@ export class Clapp implements IClapp {
     const description = label;
     const commandPlugin = this.createCommand(id, description, commandDefinitin);
     commandPlugin.action(async (...allArgs: any[]) => {
+      const { name, args, opts } = this.parseCommandArgs(allArgs);
       try {
-        const { name, args, opts } = this.parseCommandArgs(allArgs);
+        await this.eventBus.emit('command:start', { id: name, type: PLUGIN_COMMAND_TYPE, args, opts });
         const plugin = await this.pluginManager.getInstance(name);
         logger.send(['createCommands', { args, opts }]);
         if (typeof plugin.action === 'function') {
-          const pluginArgs = plugin.getArguments(args, opts);
-          const result: any = plugin.action(pluginArgs);
-          if (result && typeof result.then === 'function') {
-            await result;
-          }
+          await this.eventBus.emit('command:arguments', { id: name, type: PLUGIN_COMMAND_TYPE, args, opts });
+          const pluginArgs = await plugin.getArguments(args, opts);
+          await this.eventBus.emit('command:run', { id: name, type: PLUGIN_COMMAND_TYPE, args: pluginArgs });
+          const result = await plugin.action(pluginArgs);
+          await this.eventBus.emit('command:end', { id: name, type: PLUGIN_COMMAND_TYPE, result });
         }
         process.exit(0);
       } catch (error) {
         logger.send(['Command execution error:', error], 'error');
+        await this.eventBus.emit('command:error', { id: name, type: PLUGIN_COMMAND_TYPE, error });
         process.exit(1);
       }
     });
