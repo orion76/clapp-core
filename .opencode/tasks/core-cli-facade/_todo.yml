@@ -1,0 +1,111 @@
+# core-cli-facade: Ядро без commander — абстрактный класс-фасад CLI и реализация на commander в @clapp/ai
+task: core-cli-facade
+version: 1
+groups:
+  - id: а
+    title: Абстрактный фасад CLI в ядре
+    status: todo
+  - id: б
+    title: Ядро работает через фасад
+    status: todo
+  - id: в
+    title: Реализация фасада для @clapp/ai
+    status: todo
+  - id: г
+    title: Проверка прототипа
+    status: todo
+items:
+  - id: а1
+    group: а
+    text: Описать абстрактный класс-фасад CLI (минимальный интерфейс, нужный ядру)
+    status: todo
+    actions:
+      - Создание программы (name/description/version), команда и группа, аргументы/опции/алиасы/описание
+      - Action с аргументами и опциями, вывод помощи, разбор argv, ошибка разбора с кодом возврата
+      - Определение информационного запуска (help/version); типы — из @clapp/common и типов ядра
+    links:
+      - packages/core/src/utils/command.ts:1
+      - packages/core/src/types.ts:8
+  - id: а2
+    group: а
+    text: Токен CLI_FACADE_TOKEN и инъекция фасада в Clapp
+    status: todo
+    actions:
+      - Токен в packages/core/src/constants/tokens.ts + экспорт из публичного API
+      - Property-инъекция в Clapp (как остальные зависимости) и понятная ошибка без реализации
+    links:
+      - packages/core/src/constants/tokens.ts:13
+      - packages/core/src/clapp.ts:25
+  - id: б1
+    group: б
+    text: Перевести построение команд и программы на фасад
+    status: todo
+    actions:
+      - buildCommandArgument/buildCommandOption/initializeCommand/createProgram — на методы фасада
+      - Убрать Argument/Option/createOption/CommanderError из utils/command.ts
+    links:
+      - packages/core/src/utils/command.ts:6
+      - packages/core/src/utils/command.ts:141
+  - id: б2
+    group: б
+    text: Перевести clapp.ts на фасад (дерево команд, action, parse)
+    status: todo
+    actions:
+      - Заменить тип Command и createCommands/_createCommand на методы фасада
+      - Сохранить allowExcessArguments и порядок регистрации корня
+    links:
+      - packages/core/src/clapp.ts:2
+      - packages/core/src/clapp.ts:95
+  - id: б3
+    group: б
+    text: Убрать commander из bootstrap.ts и из метаданных пакета @clapp/core
+    status: todo
+    actions:
+      - reportFailedRun — через фасад (ошибки разбора не дублируются), resolveExitCode — на метод фасада
+      - Убрать commander из peerDependencies, keywords и описания packages/core/package.json
+      - Проверить rollup/external и сборку core без commander
+    links:
+      - packages/core/src/bootstrap.ts:2
+      - packages/core/src/bootstrap.ts:83
+      - packages/core/package.json:48
+  - id: б4
+    group: б
+    text: Сохранить поведение CLI на уровне ядра
+    status: todo
+    actions:
+      - Без аргументов — справка и код 0; help/version — код 0; неизвестная команда — одна строка и код 1
+      - Группа команд (parent) показывает справку только внутри группы; предупреждение при нуле плагинов
+    links:
+      - packages/core/src/utils/command.ts:168
+      - packages/core/src/utils/command.ts:194
+  - id: в1
+    group: в
+    text: Реализовать фасад на commander в @clapp/ai
+    status: todo
+    actions:
+      - packages/ai/src/cli/* — весь commander-код (аргументы, опции, справка, exitOverride, коды)
+      - commander в зависимостях packages/ai/package.json
+    links:
+      - packages/ai/src/bin/clapp-ai.ts:1
+  - id: в2
+    group: в
+    text: Забиндить реализацию фасада в точке входа @clapp/ai
+    status: todo
+    actions:
+      - Биндинг под CLI_FACADE_TOKEN в packages/ai/src/bin/clapp-ai.ts до вызова run
+      - Убедиться, что приложение ai больше не требует commander из ядра
+  - id: г1
+    group: г
+    text: Живые прогоны dev-запуска @clapp/ai
+    status: todo
+    actions:
+      - Без аргументов, --help, --version, неизвестная команда
+      - skill-list, board list, board next — вывод и коды возврата
+      - Команды, коды и отклонения — в _reports.yml
+  - id: г2
+    group: г
+    text: Проверить отсутствие commander в ядре и зелёную сборку
+    status: todo
+    actions:
+      - grep по packages/core/src — упоминаний commander нет
+      - npm run build -w @clapp/core и npm run build -w @clapp/ai — exit 0
