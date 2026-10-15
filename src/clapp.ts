@@ -5,13 +5,12 @@ import { inject, injectable } from 'inversify';
 import {
   EVENT_BUS_TOKEN,
   type IClapp,
-  type ICommandConfig,
   type ICommandResult,
   type IEventBus,
   type IPluginCommand,
   type IPluginCommandDefinition,
   type IPluginFormatter,
-  PLUGIN_COMMAND_TYPE,
+  PLUGIN_COMMAND_TYPE
 } from '@clapp/common';
 
 import { TLogger, UConsoleLevels } from '@orion76/logger';
