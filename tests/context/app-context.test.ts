@@ -8,7 +8,7 @@ import { PLUGIN_CONTEXT_TYPE } from '@clapp/common';
 import type { IPluginManager } from '@orion76/node-plugin';
 
 import { AppContext } from '../../src/context/app-context.js';
-import { CONTEXT_MANAGER_TOKEN } from '../../src/tokens.js';
+import { CONTEXT_MANAGER_TOKEN } from '../../src/constants/tokens.js';
 
 type ContextValue = { marker: string };
 

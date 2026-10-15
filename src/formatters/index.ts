@@ -7,3 +7,4 @@
 export * from './formatter.base';
 export * from './table/table.plugin';
 export * from './ordered-list/ordered-list.plugin';
+export * from './key-value/key-value.plugin';
