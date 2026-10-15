@@ -1,1 +1,1 @@
-tasks/typescript-code-structure-fixes/_task.md
+tasks/core-formatter-output/_task.md
