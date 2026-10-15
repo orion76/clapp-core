@@ -1,0 +1,95 @@
+# flat-command-hierarchy: Плоская иерархия команд: parent вместо commandType/commands
+task: flat-command-hierarchy
+version: 1
+groups:
+  - id: а
+    title: Типы @clapp/common (плоский PluginDefinition)
+    status: done
+  - id: б
+    title: Существующие определения плагинов (убрать commandType)
+    status: done
+  - id: в
+    title: clapp.ts — дерево по parent и создание команд commander
+    status: done
+  - id: г
+    title: Сборка и проверка
+    status: done
+items:
+  - id: а1
+    group: а
+    text: Плоский IPluginCommandDefinition с полем parent?: string; убрать commandType, UCommandDefinitionType, IPluginCommandDefinitionBase
+    status: done
+    actions:
+      - packages/common/src/types/plugin.ts: добавить parent, удалить лишние типы
+  - id: а2
+    group: а
+    text: Убрать IPluginCommandWithSubcommandsDefinition/IPluginCommandWithSubcommands и commands; упростить UPluginCommandDefinition до единого типа
+    status: done
+    actions:
+      - packages/common/src/types/plugin.ts
+  - id: а3
+    group: а
+    text: Привести utils/command.ts (isCommand/isMainCommand) — файл не используется из clapp.ts; проверить отсутствие других импортов
+    status: done
+    actions:
+      - packages/common/src/utils/command.ts
+      - grep по репозиторию на isCommand/isMainCommand
+  - id: б1
+    group: б
+    text: Убрать commandType: 'command' из src/commands/info/info.plugin.ts
+    status: done
+  - id: б2
+    group: б
+    text: Убрать commandType: 'command' из packages/ai/src/commands/{model,init,script,instruction,npm-info}.plugin.ts
+    status: done
+    actions:
+      - packages/ai/src/commands/model/model.plugin.ts
+      - packages/ai/src/commands/init/init.plugin.ts
+      - packages/ai/src/commands/script/script.plugin.ts
+      - packages/ai/src/commands/instruction/instruction.plugin.ts
+      - packages/ai/src/commands/npm-info/npm-info.plugin.ts
+  - id: б3
+    group: б
+    text: Убрать commandType: 'command' из packages/ai/src/commands/skill/{add,list}.plugin.ts
+    status: done
+    actions:
+      - packages/ai/src/commands/skill/add.plugin.ts
+      - packages/ai/src/commands/skill/list.plugin.ts
+  - id: в1
+    group: в
+    text: Построение дерева иерархии из плоского списка по parent (корни/потомки, валидация ссылок)
+    status: done
+    actions:
+      - packages/core/src/clapp.ts: initialize() вызывает построение дерева
+  - id: в2
+    group: в
+    text: Переписать createCommands() под дерево: узлы с потомками — группы без action, листья — _createCommand
+    status: done
+    actions:
+      - packages/core/src/clapp.ts
+  - id: в3
+    group: в
+    text: _createCommand() — резолв плагина по definition.id; обновить импорты в clapp.ts
+    status: done
+    actions:
+      - packages/core/src/clapp.ts: getInstance(definition.id)
+      - убрать неактуальные импорты (isCommand, isMainCommand, при необходимости UPluginCommandDefinition)
+  - id: г1
+    group: г
+    text: npm run build:all — без ошибок
+    status: done
+    actions:
+      - npm run build:all
+  - id: г2
+    group: г
+    text: npm run test:jest -w @clapp/core — без ошибок
+    status: done
+    actions:
+      - npm run test:jest -w @clapp/core
+  - id: г3
+    group: г
+    text: npm start -- info и npm run start:ai -- skill-list исполняются
+    status: done
+    actions:
+      - npm start -- info
+      - npm run start:ai -- skill-list
