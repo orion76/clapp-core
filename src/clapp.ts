@@ -6,14 +6,16 @@ import {
   EVENT_BUS_TOKEN,
   type IClapp,
   type ICommandConfig,
+  type ICommandResult,
   type IEventBus,
   type IPluginCommand,
   type IPluginCommandDefinition,
+  type IPluginFormatter,
   PLUGIN_COMMAND_TYPE,
 } from '@clapp/common';
 
 import { TLogger, UConsoleLevels } from '@orion76/logger';
-import { CLAPP_LOGGER_TOKEN, CLI_CONFIG_TOKEN, COMMAND_MANAGER_TOKEN } from './constants/tokens';
+import { CLAPP_LOGGER_TOKEN, CLI_CONFIG_TOKEN, COMMAND_MANAGER_TOKEN, FORMATTER_MANAGER_TOKEN } from './constants/tokens';
 import type { ICliConfig, ICommandExecArguments, ICommandNode } from './types';
 import { buildHierarchy, createProgram, initializeCommand, isInformationalInvocation } from './utils';
 
@@ -26,6 +28,7 @@ export class Clapp implements IClapp {
   @inject(CLI_CONFIG_TOKEN) private readonly config!: ICliConfig;
   @inject(EVENT_BUS_TOKEN) private readonly eventBus!: IEventBus;
   @inject(COMMAND_MANAGER_TOKEN) private readonly pluginManager!: IPluginManager<IPluginCommand>;
+  @inject(FORMATTER_MANAGER_TOKEN) private readonly formatterManager!: IPluginManager<IPluginFormatter>;
 
   private program!: Command;
 
@@ -79,6 +82,7 @@ export class Clapp implements IClapp {
         if (result.success === false) {
           throw new Error(result.error?.join('; ') ?? `Command '${name}' failed`);
         }
+        await this.formatCommandResult(plugin.definition, result);
         await this.eventBus.hook('command:end', { id: name, type: PLUGIN_COMMAND_TYPE, result });
       }
     } catch (error) {
@@ -90,6 +94,39 @@ export class Clapp implements IClapp {
       }
       throw error;
     }
+  }
+
+  /**
+   * Prints the result of a command through the formatter named by its definition.
+   *
+   * The formatter plugin is resolved by the identifier from `definition.formatter`
+   * and receives `result.data`. An identifier that matches no discovered formatter
+   * and a failing `format(...)` are reported as command errors, so the run ends
+   * with a non-zero exit code instead of silently succeeding. A command without a
+   * formatter prints nothing here: its action writes its own output.
+   * @param definition Definition of the executed command
+   * @param result Result returned by the command action
+   */
+  private async formatCommandResult(definition: IPluginCommandDefinition, result: ICommandResult): Promise<void> {
+    const { formatter } = definition;
+    if (!formatter) {
+      return;
+    }
+
+    let output: string;
+    try {
+      const plugin = await this.formatterManager.getInstance(formatter);
+      output = await plugin.format(result.data);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`Command '${definition.id}': formatter '${formatter}' failed: ${reason}`);
+    }
+
+    if (output.length === 0) {
+      return;
+    }
+
+    process.stdout.write(output.endsWith('\n') ? output : `${output}\n`);
   }
 
   private _createCommand(target: Command, definition: IPluginCommandDefinition) {
