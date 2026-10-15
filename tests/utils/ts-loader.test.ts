@@ -1,4 +1,6 @@
-import { ensureTsLoader } from '../src/utils/ts-loader.js';
+import { describe, expect, it } from '@jest/globals';
+
+import { ensureTsLoader } from '../../src/utils/ts-loader.js';
 
 describe('ensureTsLoader', () => {
   it('memoizes the registration promise', () => {

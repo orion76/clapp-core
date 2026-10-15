@@ -13,8 +13,9 @@ export default {
       },
     ],
   },
-  // inversify 8 ships ESM only; let ts-jest transpile it and its scoped deps.
-  transformIgnorePatterns: ['/node_modules/(?!inversify|@inversifyjs)'],
+  // inversify 8 and @orion76 packages ship ESM only; let ts-jest transpile them
+  // and their scoped deps.
+  transformIgnorePatterns: ['/node_modules/(?!inversify|@inversifyjs|@orion76)'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },

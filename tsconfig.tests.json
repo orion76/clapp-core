@@ -1,8 +1,12 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
     "types": ["jest", "node"],
     "allowJs": true
   },
-  "include": ["./**/*.ts"]
+  "include": ["tests/**/*.ts"],
+  "exclude": ["dist/**", "node_modules/**"]
 }

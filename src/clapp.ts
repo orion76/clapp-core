@@ -1,78 +1,63 @@
-import { Argument, Command, createOption, Option } from 'commander';
-import { providePluginManager, rootContainer, type IPluginManager } from '@orion76/node-plugin';
-import { Container, inject, injectable, type ServiceIdentifier } from 'inversify';
+import type { IPluginManager } from '@orion76/node-plugin';
+import { Command } from 'commander';
+import { inject, injectable } from 'inversify';
 
-import { getLogger } from './logger-init';
-import { CLI_CONFIG_TOKEN, COMMAND_MANAGER_TOKEN } from './plugins/tokens';
-import { EventBus } from './events/event-bus';
-import { ensureTsLoader } from './utils';
 import {
-  CLIConfig,
   EVENT_BUS_TOKEN,
-  IClapp,
-  ICommandArgument,
-  ICommandDefintion,
-  ICommandOption,
-  IEventBus,
-  IPluginCommand,
-  IPluginCommandDefinition,
+  type IClapp,
+  type ICommandConfig,
+  type IEventBus,
+  type IPluginCommand,
+  type IPluginCommandDefinition,
   PLUGIN_COMMAND_TYPE,
-  isCommand,
-  isMainCommand,
-  UPluginCommandDefinition,
 } from '@clapp/common';
 
-const logger = getLogger('clapp_cli');
+import { TLogger, UConsoleLevels } from '@orion76/logger';
+import { CLAPP_LOGGER_TOKEN, CLI_CONFIG_TOKEN, COMMAND_MANAGER_TOKEN } from './constants/tokens';
+import type { ICliConfig, ICommandExecArguments, ICommandNode } from './types';
+import { buildHierarchy, createProgram, initializeCommand, isInformationalInvocation } from './utils';
+
 /**
  * Main class for creating CLI applications
  */
 @injectable()
 export class Clapp implements IClapp {
-  private program: Command;
+  @inject(CLAPP_LOGGER_TOKEN) private readonly logger!: TLogger;
+  @inject(CLI_CONFIG_TOKEN) private readonly config!: ICliConfig;
+  @inject(EVENT_BUS_TOKEN) private readonly eventBus!: IEventBus;
+  @inject(COMMAND_MANAGER_TOKEN) private readonly pluginManager!: IPluginManager<IPluginCommand>;
 
-  private pluginManager!: IPluginManager<IPluginCommand>;
-
-  constructor(
-    @inject(CLI_CONFIG_TOKEN) private config: CLIConfig,
-    @inject(EVENT_BUS_TOKEN) private eventBus: IEventBus,
-  ) {
-    logger.send(['--- Creating CLI application:', config.name]);
-    this.program = this.createProgram();
-  }
+  private program!: Command;
 
   /**
    * Initialize the CLI application asynchronously
+   * @param argv Process arguments used to detect informational runs (`--help`, `--version`);
+   *   defaults to `process.argv`
    */
-  async initialize(): Promise<void> {
-    await ensureTsLoader();
-    providePluginManager<IPluginCommand>(
-      PLUGIN_COMMAND_TYPE,
-      COMMAND_MANAGER_TOKEN as ServiceIdentifier<IPluginManager<IPluginCommand>>,
-      {
-        config: this.config.commandDiscovery ?? { patterns: [] },
-      },
-    );
-    this.pluginManager = rootContainer.get(COMMAND_MANAGER_TOKEN);
+  async initialize(argv: readonly string[] = process.argv): Promise<void> {
     const commandDefinitions = await this.pluginManager.getDefinitions();
-    this.createCommands(commandDefinitions);
+    this.program = createProgram(this.config);
+
+    if (commandDefinitions.length === 0 && !isInformationalInvocation(argv)) {
+      // Discovery found nothing: the patterns may not match the application root, so the
+      // help of the program would list no commands. The CLI still prints its help to
+      // stdout and exits successfully, the warning is only a hint on stderr. Informational
+      // runs (`--help`, `--version`) print the requested text and exit successfully, so the
+      // hint would only be noise there.
+      console.error('warning: no commands found — check plugin discovery patterns');
+    }
+
+    this.createCommands(buildHierarchy(commandDefinitions));
+    // Registered after the subcommands on purpose: the root tolerates extra operands so
+    // that its action handler reports an unknown command instead of commander's
+    // `too many arguments` error, while the subcommands keep strict argument checks
+    // (`allowExcessArguments` is inherited by subcommands at creation time only).
+    this.program.allowExcessArguments();
   }
 
-  /**
-   * Sets up basic Commander program parameters
-   */
-  private createProgram(): Command {
-    this.eventBus.emit('app:create',this.config)
-    const program = new Command();
-    const { name, description, version } = this.config;
-    program //
-      .name(name)
-      .configureHelp({ sortSubcommands: true })
-      .description(description)
-      .version(version);
-
-    return program;
+  private log(message: string, data: unknown, level?: UConsoleLevels) {
+    this.logger.send([message, data], level);
   }
-
   /**
    * Runs command line argument processing
    * @param argv Command line arguments
@@ -81,172 +66,63 @@ export class Clapp implements IClapp {
     await this.program.parseAsync(argv);
   }
 
-  /**
-   * Creates quick static method for creating and running CLI application
-   * @param config Application configuration
-   * @returns Promise that resolves to initialized CLI instance
-   */
-  public static async create(config: CLIConfig): Promise<Clapp> {
-    if (!rootContainer.isBound(EVENT_BUS_TOKEN)) {
-      rootContainer.bind(EVENT_BUS_TOKEN).to(EventBus).inSingletonScope();
+  private async _commandAction(id: string, { name, args, opts }: ICommandExecArguments) {
+    try {
+      await this.eventBus.hook('command:start', { id: name, type: PLUGIN_COMMAND_TYPE, args, opts });
+      const plugin = await this.pluginManager.getInstance(id);
+      this.log('createCommands', { args, opts });
+      if (typeof plugin.action === 'function') {
+        await this.eventBus.hook('command:arguments', { id: name, type: PLUGIN_COMMAND_TYPE, args, opts });
+        const pluginArgs = await plugin.getArguments(args, opts);
+        await this.eventBus.hook('command:run', { id: name, type: PLUGIN_COMMAND_TYPE, args: pluginArgs });
+        const result = await plugin.action(pluginArgs);
+        if (result.success === false) {
+          throw new Error(result.error?.join('; ') ?? `Command '${name}' failed`);
+        }
+        await this.eventBus.hook('command:end', { id: name, type: PLUGIN_COMMAND_TYPE, result });
+      }
+    } catch (error) {
+      this.log('Command execution error:', error, 'error');
+      try {
+        await this.eventBus.hook('command:error', { id: name, type: PLUGIN_COMMAND_TYPE, error });
+      } catch (hookError) {
+        this.log('command:error hook failed:', hookError, 'error');
+      }
+      throw error;
     }
-
-    const scope = new Container({ parent: rootContainer });
-    scope.bind(CLI_CONFIG_TOKEN).toConstantValue(config);
-    scope.bind(Clapp).toSelf();
-
-    const cli = scope.get(Clapp);
-    await cli.initialize();
-    return cli;
   }
 
-  private createCommand(name: string, description: string, config: ICommandDefintion) {
-    logger.send(['[CLAPP] createCommand', name]);
-    const command = this.program.command(name);
+  private _createCommand(target: Command, definition: IPluginCommandDefinition) {
+    const { id, label, config } = definition;
+    const description = config.description ?? label;
 
-    command.description(description);
-
-    if (config.aliases && config.aliases.length > 0) {
-      command.aliases(config.aliases);
-    }
-
-    // Add arguments
-    if (config.arguments) {
-      for (const arg of config.arguments) {
-        const argument = this.buildCommandArgument(arg);
-        command.addArgument(argument);
-      }
-    }
-
-    // Add options
-    if (config.options) {
-      for (const optionConf of config.options) {
-        const option = this.buildCommandOption(optionConf);
-        command.addOption(option);
-      }
-    }
+    const command = target.command(id);
+    initializeCommand(command, description, config);
+    command.action(async (...allArgs: any[]) => this._commandAction(id, this.parseCommandArgs(allArgs)));
 
     return command;
   }
 
-  private _createCommand(definition: IPluginCommandDefinition) {
-    const { id, label, command: commandDefinitin } = definition;
-    const description = label;
-    const commandPlugin = this.createCommand(id, description, commandDefinitin);
-    commandPlugin.action(async (...allArgs: any[]) => {
-      const { name, args, opts } = this.parseCommandArgs(allArgs);
-      try {
-        await this.eventBus.emit('command:start', { id: name, type: PLUGIN_COMMAND_TYPE, args, opts });
-        const plugin = await this.pluginManager.getInstance(name);
-        logger.send(['createCommands', { args, opts }]);
-        if (typeof plugin.action === 'function') {
-          await this.eventBus.emit('command:arguments', { id: name, type: PLUGIN_COMMAND_TYPE, args, opts });
-          const pluginArgs = await plugin.getArguments(args, opts);
-          await this.eventBus.emit('command:run', { id: name, type: PLUGIN_COMMAND_TYPE, args: pluginArgs });
-          const result = await plugin.action(pluginArgs);
-          await this.eventBus.emit('command:end', { id: name, type: PLUGIN_COMMAND_TYPE, result });
-        }
-        process.exit(0);
-      } catch (error) {
-        logger.send(['Command execution error:', error], 'error');
-        await this.eventBus.emit('command:error', { id: name, type: PLUGIN_COMMAND_TYPE, error });
-        process.exit(1);
+  createCommands(nodes: ICommandNode[], parent?: Command): Command[] {
+    const target = parent ?? this.program;
+    return nodes.map((node) => {
+      if (node.children.length > 0) {
+        // Group node: command container without its own action; subcommands are attached recursively.
+        // `target.command(...)` already registers the group on its parent, so the returned child
+        // commands must not be added to it a second time.
+        const group = target.command(node.definition.id);
+        group.description(node.definition.label);
+        this.createCommands(node.children, group);
+        return group;
       }
-    });
-    return commandPlugin;
-  }
-
-  createCommands(commandDefinitions: UPluginCommandDefinition[]) {
-    return commandDefinitions.map((definition) => {
-      if (isCommand(definition)) {
-        return this._createCommand(definition);
-      }
-
-      if (isMainCommand(definition)) {
-        const { commands, id, label } = definition;
-        const commandPlugin = this.program.command(id);
-        commandPlugin.description(label);
-        this.createCommands(commands).forEach((sub) => commandPlugin.addCommand(sub));
-        return commandPlugin;
-      }
-      throw new Error('Command definitioni is failure');
+      return this._createCommand(target, node.definition);
     });
   }
 
-  parseCommandArgs(allArgs: any[]) {
+  parseCommandArgs(allArgs: any[]): ICommandExecArguments {
     const command = allArgs[allArgs.length - 1]; // Command object is always last
     const opts = command.opts(); // Get options from Command object
     const args = allArgs.slice(0, -2); // All except last are arguments
     return { name: command.name(), args, opts };
-  }
-
-  /**
-   * Build argument syntax for Commander
-   * @param argConfig Argument configuration
-   * @returns Argument syntax string
-   */
-  private buildCommandArgument(argConfig: ICommandArgument): Argument {
-    let commandArgument = argConfig.name;
-
-    if (argConfig.variadic) {
-      commandArgument += '...';
-    }
-
-    const argument = new Argument(commandArgument, argConfig.description);
-
-    if (argConfig.required) {
-      argument.argRequired();
-    } else {
-      argument.argOptional();
-    }
-
-    if (argConfig.choices) {
-      argument.choices(argConfig.choices);
-    }
-    if (argConfig.parseArg) {
-      argument.argParser(argConfig.parseArg);
-    }
-
-    return argument;
-  }
-
-  /**
-   * Build option flags for Commander
-   * @param optionConfig Option configuration
-   * @returns Option flags string
-   */
-  private buildCommandOption(optionConfig: ICommandOption): Option {
-    // const option = new Option();
-
-    let flags: string[] = [];
-
-    if (optionConfig.short) {
-      flags.push(`-${optionConfig.short}`);
-    }
-
-    if (optionConfig.name) {
-      if (flags.length > 0) {
-        flags.push(', ');
-      }
-      flags.push(`--${optionConfig.name}`);
-    }
-
-    if (optionConfig.type !== 'boolean') {
-      const valueName = optionConfig.name || optionConfig.short || 'value';
-      if (optionConfig.required) {
-        flags.push(` <${valueName}>`);
-      } else {
-        flags.push(` [${valueName}]`);
-      }
-    }
-    const option = createOption(flags.join(''), optionConfig.description);
-
-    if (optionConfig.choices) {
-      option.choices(optionConfig.choices);
-    }
-    if (optionConfig.defaultValue) {
-      option.default(optionConfig.defaultValue);
-    }
-    return option;
   }
 }
