@@ -2,12 +2,18 @@ import { providePluginManager } from '@orion76/node-plugin';
 import { CommanderError } from 'commander';
 import type { Container } from 'inversify';
 
-import { EVENT_BUS_TOKEN, type IPluginCommand, type IPluginContext } from '@clapp/common';
+import { EVENT_BUS_TOKEN, type IPluginCommand, type IPluginContext, type IPluginFormatter } from '@clapp/common';
 
-import { IClapp, PLUGIN_COMMAND_TYPE, PLUGIN_CONTEXT_TYPE } from '@clapp/common';
+import { IClapp, PLUGIN_COMMAND_TYPE, PLUGIN_CONTEXT_TYPE, PLUGIN_FORMATTER_TYPE } from '@clapp/common';
 import { Clapp } from './clapp';
 import { APP_CONFIG_PATH_DEFAULT } from './constants/paths';
-import { CLAPP_LOGGER_TOKEN, CLI_CONFIG_TOKEN, COMMAND_MANAGER_TOKEN, CONTEXT_MANAGER_TOKEN } from './constants/tokens';
+import {
+  CLAPP_LOGGER_TOKEN,
+  CLI_CONFIG_TOKEN,
+  COMMAND_MANAGER_TOKEN,
+  CONTEXT_MANAGER_TOKEN,
+  FORMATTER_MANAGER_TOKEN,
+} from './constants/tokens';
 import { EventBus } from './events/event-bus';
 import { createAppConfig, getAppConfig, resolveExitCode } from './public-api';
 import type { IInitAppOptions } from './types';
@@ -42,6 +48,13 @@ export async function bootstrapApp(container: Container, options: IInitAppOption
     PLUGIN_CONTEXT_TYPE,
     CONTEXT_MANAGER_TOKEN,
     { config: config.plugins[PLUGIN_CONTEXT_TYPE] },
+    container,
+  );
+
+  providePluginManager<IPluginFormatter>(
+    PLUGIN_FORMATTER_TYPE,
+    FORMATTER_MANAGER_TOKEN,
+    { config: config.plugins[PLUGIN_FORMATTER_TYPE] },
     container,
   );
   const app = container.get(Clapp);

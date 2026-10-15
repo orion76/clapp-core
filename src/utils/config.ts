@@ -3,7 +3,7 @@ import { dirname, isAbsolute, resolve } from 'node:path';
 
 import { load as loadYaml } from 'js-yaml';
 import { ICliConfig, TCliConfigOverride } from '../types';
-import { PLUGIN_COMMAND_TYPE, PLUGIN_CONTEXT_TYPE, IPluginDiscoveryConfig } from '@clapp/common';
+import { PLUGIN_COMMAND_TYPE, PLUGIN_CONTEXT_TYPE, PLUGIN_FORMATTER_TYPE, IPluginDiscoveryConfig } from '@clapp/common';
 import { APP_CONFIG_DEFAULT } from '../config/config';
 
 /**
@@ -47,6 +47,7 @@ function resolveConfigPatterns(appRoot: string, config: ICliConfig): ICliConfig 
     plugins: {
       [PLUGIN_COMMAND_TYPE]: resolvePatterns(config.plugins[PLUGIN_COMMAND_TYPE]),
       [PLUGIN_CONTEXT_TYPE]: resolvePatterns(config.plugins[PLUGIN_CONTEXT_TYPE]),
+      [PLUGIN_FORMATTER_TYPE]: resolvePatterns(config.plugins[PLUGIN_FORMATTER_TYPE]),
     },
   };
 }
