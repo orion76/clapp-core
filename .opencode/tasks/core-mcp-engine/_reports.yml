@@ -1,0 +1,213 @@
+# core-mcp-engine: журнал отчётов о проделанной работе
+task: core-mcp-engine
+version: 1
+reports:
+  - ref: а1
+    status: in-progress
+    by: coder
+    at: 2026-10-16T13:21
+    text: |
+      Начат пункт а1: добавление констант и типов вида команды в @clapp/common.
+      Файл packages/common/src/constants/plugin-types.ts — дописаны
+      COMMAND_KIND_RESOURCE/TOOL/PROMPT/GROUP и типы UCommandKind,
+      UCommandDefinitionKind; экспорт из публичного API идёт через
+      packages/common/src/constants/index.ts (`export * from './plugin-types'`)
+      и packages/common/src/public-api.ts (`export * from './constants'`).
+  - ref: а1
+    status: done
+    by: coder
+    at: 2026-10-16T13:22
+    text: |
+      Пункт а1 закрыт. Изменён один файл:
+      packages/common/src/constants/plugin-types.ts — добавлены константы
+      COMMAND_KIND_RESOURCE='resource', COMMAND_KIND_TOOL='tool',
+      COMMAND_KIND_PROMPT='prompt', COMMAND_KIND_GROUP='group' (с JSDoc о
+      соответствии поверхностям MCP) и производные union-типы UCommandKind
+      (три вида) и UCommandDefinitionKind (вид команды | 'group') — в стиле
+      соседних PLUGIN_*_TYPE (строковая константа + typeof-union).
+      Экспорт из публичного API проверен по цепочке:
+      constants/plugin-types.ts → constants/index.ts (`export *`)
+      → public-api.ts (`export * from './constants'`).
+      Проверка: `npx tsc --noEmit -p packages/common/tsconfig.json` — exit 0.
+  - ref: а2
+    status: in-progress
+    by: coder
+    at: 2026-10-16T13:23
+    text: |
+      Начат пункт а2: обязательное поле `kind` в IPluginCommandDefinition
+      (packages/common/src/types/plugin.ts) с JSDoc о трёх видах, их
+      соответствии поверхностям MCP и назначении маркера группы.
+  - ref: а2
+    status: done
+    by: coder
+    at: 2026-10-16T13:25
+    text: |
+      Пункт а2 закрыт. Изменён файл packages/common/src/types/plugin.ts:
+      - добавлен импорт `import type { UCommandDefinitionKind } from '../constants';`
+        (рядом с уже существующим импортом констант из '../constants');
+      - в IPluginCommandDefinition<A> добавлено обязательное поле
+        `kind: UCommandDefinitionKind` первым членом интерфейса, с JSDoc:
+        три вида команды (`resource`/`tool`/`prompt`), их смысл и соответствие
+        поверхностям MCP (Resources/Tools/Prompts) и назначение маркера группы
+        `COMMAND_KIND_GROUP` (узел-контейнер, на MCP не отображается).
+      Авторский тип IPluginCommandDefinitionData (`Omit<…, 'pluginClass'>`) и
+      производный от него IFormatterCommandDefinitionData (@clapp/command)
+      наследуют обязательное поле автоматически — правок в @clapp/command не
+      требовалось. Поле `type` (тип плагина PLUGIN_COMMAND) не затронуто.
+      Проверка: `npx tsc --noEmit -p packages/common/tsconfig.json` — exit 0.
+  - ref: а3
+    status: in-progress
+    by: coder
+    at: 2026-10-16T13:27
+    text: |
+      Начат пункт а3: простановка `kind` в 7 определениях команд в
+      packages/ai/plugins/commands/**. Виды определены по фактическому
+      поведению `action`/используемых use case-функций.
+  - ref: а3
+    status: done
+    by: coder
+    at: 2026-10-16T13:33
+    text: |
+      Пункт а3 закрыт. Изменены 7 файлов packages/ai/plugins/commands/**:
+      в каждый добавлен value-импорт подходящей константы из `@clapp/command`
+      (который реэкспортирует `@clapp/common`) и поле `kind` сразу после `type`
+      в объекте определения:
+      - board/board.plugin.ts — COMMAND_KIND_GROUP (узел-контейнер подкоманд
+        list/next, на MCP не отображается);
+      - board/list/list.plugin.ts — COMMAND_KIND_RESOURCE (listBoard читает
+        INDEX.md, побочных эффектов нет);
+      - board/next/next.plugin.ts — COMMAND_KIND_RESOURCE;
+      - init/init.plugin.ts — COMMAND_KIND_TOOL (initProject создаёт
+        config/skills/commands/agents/AGENTS.md);
+      - npm-info/npm-info.plugin.ts — COMMAND_KIND_RESOURCE (readPackageJson);
+      - skill-add/skill-add.plugin.ts — COMMAND_KIND_TOOL (writeSkill пишет
+        .opencode/skills/<name>/SKILL.md);
+      - skill-list/skill-list.plugin.ts — COMMAND_KIND_RESOURCE
+        (listSkills/listAllSkills читают).
+
+      Обоснование спорного пункта board/next (отклонение от подсказки в
+      `_todo.yml`/концепции, где board/next отнесён к «по смыслу команды
+      (действие в проекте)»): команда не имеет побочных эффектов — `nextBoard`
+      (`packages/ai/src/lib/board/service.ts:79`) вызывает только
+      `collectProjects` + `selectNext`, а `selectNext`
+      (`packages/ai/src/lib/board/select-next.ts:23`) — только `readState`/
+      `readTaskMeta`; grep по `packages/ai/src/lib/board` не находит ни одного
+      пишущего fs-вызова (writeFile/mkdir/symlink/…). По определению из задачи
+      («чтение данных о проекте/состоянии, без побочных эффектов» → resource,
+      «действие с побочными эффектами» → tool) это resource. Итог по видам:
+      group — 1 (board), resource — 4 (board/list, board/next, npm-info,
+      skill-list), tool — 2 (init, skill-add).
+
+      Проверки и их результат:
+      1) `npx tsc --noEmit -p packages/common/tsconfig.json` — exit 0.
+      2) `npx tsc --noEmit -p tmp/tsconfig.command-kind-check.json` (временный
+         конфиг в `tmp/`, маппит @clapp/* на исходники и включает
+         packages/common/src, packages/command/src и
+         packages/ai/plugins/commands/**): ошибок, связанных с `kind`,
+         `COMMAND_KIND_*`, `IPluginCommandDefinition`/`IPluginCommandDefinitionData`,
+         нет. Остаются ровно 4 предсуществующие ошибки TS2307
+         `Cannot find module '...public-api.js'`
+         (board/list:6, board/next:12, init:15, npm-info:13) — импорты,
+         которые уже есть в HEAD (`git show HEAD:<file>`) и к правке не
+         относятся: в дереве нет `packages/ai/plugins/public-api.ts`.
+      3) Отрицательная проверка обязательности поля: временный
+         `tmp/kind-required-check.ts` с `IPluginCommandDefinitionData` без
+         `kind` → TS2739 «missing the following properties … label, kind»
+         (`npx tsc --noEmit -p tmp/tsconfig.kind-required.json`). Подтверждает,
+         что поле обязательное в авторском типе.
+      4) Сплошной поиск других определений команд: `grep -rn PLUGIN_COMMAND_TYPE`
+         и `grep -rn '@NodePlugin'` по репозиторию — определения команд есть
+         только в этих 7 файлах; в `packages/core/plugins/**` только
+         formatter/context-плагины (их `kind` — вид форматтера, не тронут);
+         `src/commands/**` (dev-приложение) в дереве больше нет.
+      5) `git diff --stat` — 10 файлов, 61 вставка / 4 удаления (4 удаления —
+         перегруппировка строк импорта в изменившихся файлах).
+
+      Временные файлы (`tmp/tsconfig.command-kind-check.json`,
+      `tmp/tsconfig.kind-required.json`, `tmp/kind-required-check.ts`) лежат в
+      `tmp/` (каталог исключён через .git/info/exclude); в git не попадают.
+      Коммитов не делал, ветку не переключал; изменённые файлы:
+      packages/common/src/constants/plugin-types.ts,
+      packages/common/src/types/plugin.ts,
+      packages/ai/plugins/commands/board/board.plugin.ts,
+      packages/ai/plugins/commands/board/list/list.plugin.ts,
+      packages/ai/plugins/commands/board/next/next.plugin.ts,
+      packages/ai/plugins/commands/init/init.plugin.ts,
+      packages/ai/plugins/commands/npm-info/npm-info.plugin.ts,
+      packages/ai/plugins/commands/skill-add/skill-add.plugin.ts,
+      packages/ai/plugins/commands/skill-list/skill-list.plugin.ts,
+      packages/core/.opencode/tasks/core-mcp-engine/_todo.yml.
+  - ref: а
+    status: done
+    by: coder
+    at: 2026-10-16T13:34
+    text: |
+      Группа `а` фазы 1 закрыта: все её пункты (а1, а2, а3) в статусе done.
+      Остальные группы/фазы задачи не начинались (в `_todo.yml` их пока нет —
+      объём фаз 2+ ещё не согласован). Профиль задачи `normal`: сборка и тесты
+      package-уровня в объём не входят, консистентность типов проверена
+      точечным tsc по исходникам (см. отчёт а3); сборка/typecheck `@clapp/core`
+      остаются красными из-за предсуществующего импорта
+      `packages/core/src/constants/tokens.ts:7` → `../engines/engine-facade.base`
+      (незавершённая core-cli-facade) и в этой задаче не правятся.
+  - ref: а2
+    status: done
+    by: coder
+    at: 2026-10-16T13:38
+    text: |
+      Уточнение к отчёту а2 (append-only, статус не менялся — остаётся done):
+      при финальной вычитке стиля импорт типа объединён с уже существующим
+      импортом констант из '../constants' в одну строку —
+      `import { PLUGIN_COMMAND_TYPE, PLUGIN_CONTEXT_TYPE, PLUGIN_FORMATTER_TYPE, type UCommandDefinitionKind } from '../constants';`
+      вместо отдельной строки `import type …`. Итог проверен:
+      `npx tsc --noEmit -p packages/common/tsconfig.json` — exit 0;
+      `npx prettier --check packages/common/src/types/plugin.ts` — ok.
+  - ref: а3
+    status: done
+    by: coder
+    at: 2026-10-16T13:39
+    text: |
+      Уточнение к отчёту а3 (append-only, статус не менялся — остаётся done):
+      после отчёта прогнал `npx prettier --check` по всем изменённым файлам;
+      единственная новая (не предсуществующая) претензия была к
+      packages/ai/plugins/commands/board/list/list.plugin.ts — строка импорта
+      из `@clapp/command` после добавления константы превысила printWidth 120.
+      Привёл её к multi-line-виду через `npx prettier --write`, diff затронул
+      только этот блок импорта. Остальные 2 предупреждения prettier
+      (skill-add, skill-list) — предсуществующие: те же предупреждения даёт
+      `npx prettier --check` на версиях этих файлов из HEAD.
+      Итог: `git diff --stat` — 10 файлов, 66 вставок / 4 удаления
+      (4 удаления: 1 строка импорта в list.plugin.ts + 3 строки статусов в
+      `_todo.yml`).
+  - ref: а3
+    status: done
+    by: coder
+    at: 2026-10-16T13:41
+    text: |
+      Числовая поправка к предыдущей записи (append-only, итоговый контроль
+      `git diff --shortstat`): фактически 10 файлов, 68 insertions(+),
+      6 deletions(-). Удаления: 1 строка импорта в list.plugin.ts,
+      1 строка импорта в packages/common/src/types/plugin.ts (импорт типа
+      объединён с импортом констант) и 4 строки статусов в `_todo.yml`.
+  - ref: г1
+    status: deferred
+    by: planner
+    at: 2026-10-16T14:10
+    text: |
+      Пункт «Перевод команд, печатающих сами, на контракт «data + formatter»
+      (board/list, board/next, skill-add)» отложен по решению пользователя:
+      команды проекта в этой задаче не трогаем. Следствие зафиксировано в
+      задаче и концепции: команды без formatter в MCP не экспонируются
+      (предупреждение в stderr) — это добавлено в действия пункта б2; перевод
+      команд вынесен в фазу 3 концепции как отдельная работа.
+  - ref: в5
+    status: todo
+    by: planner
+    at: 2026-10-16T14:12
+    text: |
+      Пункт в5 уточнён по решению пользователя (В5): для MCP делаем отдельный
+      класс formatter PluginManager со своим набором плагинов для stdio —
+      отдельная константа типа плагина, свой DI-токен и свой набор
+      discovery-паттернов; идентификаторы formatter у команд остаются прежними.
+      Статус пункта не менялся (todo), текст и действия переписаны под это
+      решение; задача и _concept.md приведены в соответствие.

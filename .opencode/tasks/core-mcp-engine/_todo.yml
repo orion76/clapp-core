@@ -4,12 +4,24 @@ version: 1
 groups:
   - id: а
     title: Вид команды в определении плагина (фаза 1)
+    status: done
+  - id: б
+    title: Движок и запуск по stdio
+    status: todo
+  - id: в
+    title: Поверхности MCP (tools/resources/prompts)
+    status: todo
+  - id: г
+    title: Команды проекта под контракт MCP
+    status: todo
+  - id: д
+    title: Живая проверка прототипа
     status: todo
 items:
   - id: а1
     group: а
     text: Типы и константы вида команды в @clapp/common
-    status: todo
+    status: done
     actions:
       - Добавить константы COMMAND_KIND_RESOURCE/TOOL/PROMPT и маркер группы COMMAND_KIND_GROUP с типами UCommandKind и UCommandDefinitionKind (packages/common/src/constants/plugin-types.ts, либо отдельный модуль констант)
       - Экспортировать константы и типы из публичного API @clapp/common
@@ -19,7 +31,7 @@ items:
   - id: а2
     group: а
     text: Обязательное поле kind в определении команды
-    status: todo
+    status: done
     actions:
       - Добавить kind — UCommandDefinitionKind в IPluginCommandDefinition (packages/common/src/types/plugin.ts); авторский тип IPluginCommandDefinitionData наследует поле автоматически
       - Описать в JSDoc смысл трёх видов и их соответствие поверхностям MCP (Resources/Tools/Prompts) и назначение маркера группы
@@ -29,11 +41,133 @@ items:
   - id: а3
     group: а
     text: Проставить вид у существующих определений команд @clapp/ai
-    status: todo
+    status: done
     actions:
       - packages/ai/plugins/commands/board/board.plugin.ts — маркер группы
-      - board/list, npm-info — запрос информации; board/next, init, skill-add — по смыслу команды (действие в проекте)
-      - Остальные определения команд в packages/ai/plugins/commands/** — проставить вид согласно текущему поведению команды
+      - board/list, board/next, npm-info, skill-list — resource; init, skill-add — tool
     links:
       - packages/ai/plugins/commands/board/board.plugin.ts:13
       - packages/ai/plugins/commands/board/list/list.plugin.ts:6
+  - id: б1
+    group: б
+    text: Конфигурация движка в IAppConfig.engine
+    status: todo
+    actions:
+      - Описать тип опций MCP-движка (сервер-инфо из IAppConfig — name/version/instructions/description — и будущие опции транспорта) и задать дефолт в packages/core/src/config/config.ts (сейчас поле engine не заполнено, в packages/ai/clapp.config.yml ключа нет)
+      - Заменить в заготовке IAppConfig<Implementation> на собственный тип опций движка
+    links:
+      - packages/core/src/config/config.ts:5
+      - packages/core/src/types.ts:36
+  - id: б2
+    group: б
+    text: Рабочий MCPEngine в ядре (без commander и без stdout)
+    status: todo
+    actions:
+      - 'initialize: определения команд из PluginManager → buildHierarchy → реестр сущностей по видам (group — контейнер/префикс пути)'
+      - 'Собственный конвейер исполнения: события command:start/arguments/run/end/error → getArguments → action, результат наружу (общий с CLI executor не делаем — отложен)'
+      - Убрать из заготовки commander-код (createCommands/_createCommand/parseCommandArgs), createServer из node:http и запись результата в process.stdout
+      - Команды без formatter в реестр сущностей не включать: пропуск с предупреждением в stderr (перевод этих команд отложен — пункт г1)
+    links:
+      - packages/core/src/engines/mcp/mcp.ts:42
+      - packages/core/src/engines/clapp/clapp.ts:64
+  - id: б3
+    group: б
+    text: Транспорт stdio через serveStdio
+    status: todo
+    actions:
+      - 'run: serveStdio(factory) из @modelcontextprotocol/server/stdio; фабрика создаёт McpServer на соединение, получает DI-контейнер движка через замыкание'
+      - Сервер-инфо и instructions — из IAppConfig; логи/диагностика — только в stderr
+    links:
+      - packages/core/src/engines/mcp/utils.ts:3
+      - packages/core/.opencode/tasks/core-mcp-engine/_concept.md
+  - id: б4
+    group: б
+    text: Точка входа, публичный API и чистка заготовки
+    status: todo
+    actions:
+      - Отдельный bin для запуска MCP-режима (движок выбирается в точке входа через bootstrapApp/ENGINE_TOKEN)
+      - Реэкспорт движка и его типов из публичного API @clapp/core; проверить, что сборка ядра (rollup, вход src/public-api.ts) включает движок
+      - Актуализировать зависимости packages/core/package.json (@modelcontextprotocol/server уже есть) и убрать неиспользуемый импорт createServer
+    links:
+      - packages/core/src/public-api.ts:3
+      - packages/core/rollup.config.js:1
+  - id: в1
+    group: в
+    text: Конвенции генерации данных сущностей из определения команды
+    status: todo
+    actions:
+      - 'Имя — полный путь узла через "/" (board/list); title ← label; description ← config.description ?? label'
+      - 'JSON Schema аргументов и опций: description, required, enum ← choices, default ← defaultValue, тип ← option.type, variadic → массив; подавать в SDK через fromJsonSchema (без zod в ядре)'
+      - 'annotations по виду: resource → readOnlyHint true, tool → readOnlyHint false, prompt — не применяется'
+    links:
+      - packages/common/src/types/commander.ts:5
+      - packages/core/.opencode/tasks/core-mcp-engine/_concept.md
+  - id: в2
+    group: в
+    text: 'Поверхность tools: регистрация и результат'
+    status: todo
+    actions:
+      - 'Регистрировать registerTool для команд kind: "tool"; вызов идёт через конвейер движка (б2)'
+      - 'Успех → content: [{ type: "text", text: вывод MCP-форматтера }]; success: false или исключение → результат с isError (без падения соединения)'
+      - structuredContent/outputSchema в MVP не отдаём
+    links:
+      - packages/core/src/engines/clapp/clapp.ts:109
+  - id: в3
+    group: в
+    text: 'Поверхность resources: URI по конвенции'
+    status: todo
+    actions:
+      - 'Без аргументов/опций — статический URI clapp://<путь>; с аргументами/опциями — ResourceTemplate clapp://<путь>{?arg1,arg2}'
+      - 'read callback → contents: [{ uri, mimeType: "text/plain", text: вывод MCP-форматтера }]'
+      - Имя и описание ресурса — по конвенциям (в1)
+    links:
+      - packages/core/plugins/formatters/table/table.plugin.ts:14
+  - id: в4
+    group: в
+    text: 'Поверхность prompts: аргументы и сообщение'
+    status: todo
+    actions:
+      - 'registerPrompt для команд kind: "prompt": argsSchema из config.arguments/options (в1)'
+      - 'get → одно user-сообщение с текстом = вывод MCP-форматтера команды (сборку делает движок, команда возвращает ICommandResult)'
+    links:
+      - packages/common/src/types/plugin.ts:58
+  - id: в5
+    group: в
+    text: Отдельный formatter PluginManager для MCP с набором плагинов для stdio
+    status: todo
+    actions:
+      - 'Завести константу типа плагина (например PLUGIN_FORMATTER_MCP_TYPE): новый ключ в UPluginTypes и IAppConfig.plugins (packages/common), дефолт patterns: [] в packages/core/src/config/config.ts, резолв паттернов в packages/core/src/utils/config.ts (resolveConfigPatterns), DI-токен менеджера в packages/core/src/constants/tokens.ts и регистрация через providePluginManager в packages/core/src/bootstrap.ts'
+      - Реализовать MCP-плагины форматтеров table/ordered-list/key-value (тот же базовый класс, тот же kind, без ANSI — текст для канала протокола) и подставить их набор в конфигурацию MCP-точки входа (packages/ai/clapp.config.yml: свой ключ с паттернами)
+      - Команды продолжают ссылаться на прежние идентификаторы форматтеров (значение formatter у команды не меняется), движок резолвит их в менеджере MCP; при отсутствии плагина — ошибка с понятным сообщением, фолбэка на CLI-форматтеры нет
+    links:
+      - packages/core/plugins/formatters/index.ts:1
+      - packages/core/src/bootstrap.ts:51
+      - packages/common/src/types/formatter.ts:10
+  - id: г1
+    group: г
+    text: 'Перевод команд, печатающих сами, на контракт «data + formatter» (board/list, board/next, skill-add)'
+    status: deferred
+    note: |
+      Отложено по решению пользователя (2026-10-16): команды проекта пока не трогаем. Следствие для
+      этой задачи — команды без formatter в MCP не экспонируются (см. пункт б2); их перевод — фаза 3
+      концепции, отдельная работа.
+    links:
+      - packages/ai/plugins/commands/board/list/list.plugin.ts:37
+      - packages/ai/plugins/commands/skill-add/skill-add.plugin.ts:43
+  - id: г2
+    group: г
+    text: Простая prompt-команда для проверки поверхности промптов
+    status: todo
+    actions:
+      - 'Сейчас в packages/ai нет ни одной команды с kind: "prompt" — без неё поверхность промптов нечем проверить'
+      - Добавить минимальную команду (пара аргументов, результат через formatter), назначение — чисто для проверки движка
+    links:
+      - packages/ai/plugins/commands/board/board.plugin.ts:13
+  - id: д1
+    group: д
+    text: Живая проверка прототипа по stdio
+    status: todo
+    actions:
+      - 'Запустить движок (tsx) и подключиться клиентом @modelcontextprotocol/client по stdio: списки и вызовы по всем трём поверхностям (tools/resources/prompts)'
+      - 'Проверить негативные сценарии: неверные аргументы, success: false → isError, отсутствующий MCP-форматтер, команда без formatter не попала в список; убедиться, что stdout не засоряется'
+      - Результаты и отклонения зафиксировать в _reports.yml; коммитируемые тесты — в релизном пункте г14
