@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
 
 import { load as loadYaml } from 'js-yaml';
-import { ICliConfig, TCliConfigOverride } from '../types';
+import { IAppConfig, TCliConfigOverride } from '../types';
 import { PLUGIN_COMMAND_TYPE, PLUGIN_CONTEXT_TYPE, PLUGIN_FORMATTER_TYPE, IPluginDiscoveryConfig } from '@clapp/common';
 import { APP_CONFIG_DEFAULT } from '../config/config';
 
@@ -19,7 +19,7 @@ export function resolveDiscoveryPatterns(appRoot: string, patterns: string[]): s
   return patterns.map((pattern) => (isAbsolute(pattern) ? pattern : resolve(root, pattern)));
 }
 
-function mergeConfigs(defaultConfig: ICliConfig, overrideConfig: TCliConfigOverride): ICliConfig {
+function mergeConfigs(defaultConfig: IAppConfig, overrideConfig: TCliConfigOverride): IAppConfig {
   return {
     ...defaultConfig,
     ...overrideConfig,
@@ -36,7 +36,7 @@ function mergeConfigs(defaultConfig: ICliConfig, overrideConfig: TCliConfigOverr
  * @param config CLI configuration whose plugin patterns are resolved
  * @returns Configuration with resolved plugin discovery patterns
  */
-function resolveConfigPatterns(appRoot: string, config: ICliConfig): ICliConfig {
+function resolveConfigPatterns(appRoot: string, config: IAppConfig): IAppConfig {
   const resolvePatterns = (plugin: IPluginDiscoveryConfig | undefined): IPluginDiscoveryConfig => ({
     ...plugin,
     patterns: resolveDiscoveryPatterns(appRoot, plugin?.patterns ?? []),
@@ -61,8 +61,9 @@ function resolveConfigPatterns(appRoot: string, config: ICliConfig): ICliConfig 
  * @param override Configuration override merged over the defaults
  * @returns Resolved CLI configuration
  */
-export function createAppConfig(appRoot: string, override: TCliConfigOverride): ICliConfig {
-  return resolveConfigPatterns(appRoot, mergeConfigs(APP_CONFIG_DEFAULT, override));
+export function createAppConfig(appRoot: string, override: TCliConfigOverride): IAppConfig {
+  const config = mergeConfigs(APP_CONFIG_DEFAULT, override);
+  return resolveConfigPatterns(appRoot, config);
 }
 
 /**
@@ -72,7 +73,7 @@ export function createAppConfig(appRoot: string, override: TCliConfigOverride): 
  * @param appRoot Application root; defaults to the config file directory
  * @returns Resolved CLI configuration
  */
-export async function loadConfig(configPath: string, appRoot?: string): Promise<ICliConfig> {
+export async function loadConfig(configPath: string, appRoot?: string): Promise<IAppConfig> {
   const resolvedConfigPath = resolve(configPath);
   const contents = await readFile(resolvedConfigPath, 'utf8');
   const override = loadYaml(contents) as TCliConfigOverride;
@@ -87,6 +88,6 @@ export async function loadConfig(configPath: string, appRoot?: string): Promise<
  * @param appRoot Application root; defaults to the config file directory
  * @returns Resolved CLI configuration
  */
-export async function getAppConfig(path: string, appRoot?: string): Promise<ICliConfig> {
+export async function getAppConfig(path: string, appRoot?: string): Promise<IAppConfig> {
   return loadConfig(path, appRoot);
 }

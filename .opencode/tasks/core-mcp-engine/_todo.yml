@@ -1,0 +1,39 @@
+# core-mcp-engine: MCP-движок — запуск проекта как MCP-сервера (заготовка packages/core/src/engines/mcp)
+task: core-mcp-engine
+version: 1
+groups:
+  - id: а
+    title: Вид команды в определении плагина (фаза 1)
+    status: todo
+items:
+  - id: а1
+    group: а
+    text: Типы и константы вида команды в @clapp/common
+    status: todo
+    actions:
+      - Добавить константы COMMAND_KIND_RESOURCE/TOOL/PROMPT и маркер группы COMMAND_KIND_GROUP с типами UCommandKind и UCommandDefinitionKind (packages/common/src/constants/plugin-types.ts, либо отдельный модуль констант)
+      - Экспортировать константы и типы из публичного API @clapp/common
+    links:
+      - packages/common/src/constants/plugin-types.ts:1
+      - packages/common/src/constants/index.ts:1
+  - id: а2
+    group: а
+    text: Обязательное поле kind в определении команды
+    status: todo
+    actions:
+      - Добавить kind — UCommandDefinitionKind в IPluginCommandDefinition (packages/common/src/types/plugin.ts); авторский тип IPluginCommandDefinitionData наследует поле автоматически
+      - Описать в JSDoc смысл трёх видов и их соответствие поверхностям MCP (Resources/Tools/Prompts) и назначение маркера группы
+    links:
+      - packages/common/src/types/plugin.ts:17
+      - packages/core/.opencode/tasks/core-mcp-engine/_concept.md
+  - id: а3
+    group: а
+    text: Проставить вид у существующих определений команд @clapp/ai
+    status: todo
+    actions:
+      - packages/ai/plugins/commands/board/board.plugin.ts — маркер группы
+      - board/list, npm-info — запрос информации; board/next, init, skill-add — по смыслу команды (действие в проекте)
+      - Остальные определения команд в packages/ai/plugins/commands/** — проставить вид согласно текущему поведению команды
+    links:
+      - packages/ai/plugins/commands/board/board.plugin.ts:13
+      - packages/ai/plugins/commands/board/list/list.plugin.ts:6

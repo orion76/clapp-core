@@ -64,6 +64,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "^2.3.1",
     "@opentf/cli-styles": "^0.15.0",
     "@orion76/node-plugin": "^0.3.0",
     "js-yaml": "^4.1.0",

@@ -4,57 +4,51 @@ import { inject, injectable } from 'inversify';
 
 import {
   EVENT_BUS_TOKEN,
-  type IClapp,
   type ICommandResult,
+  type IClapp as IEngine,
   type IEventBus,
   type IPluginCommand,
   type IPluginCommandDefinition,
   type IPluginFormatter,
-  PLUGIN_COMMAND_TYPE
+  PLUGIN_COMMAND_TYPE,
 } from '@clapp/common';
 
 import { TLogger, UConsoleLevels } from '@orion76/logger';
-import { CLAPP_LOGGER_TOKEN, CLI_CONFIG_TOKEN, COMMAND_MANAGER_TOKEN, FORMATTER_MANAGER_TOKEN } from './constants/tokens';
-import type { ICliConfig, ICommandExecArguments, ICommandNode } from './types';
-import { buildHierarchy, createProgram, initializeCommand, isInformationalInvocation } from './utils';
+import { CLAPP_LOGGER_TOKEN, APP_CONFIG_TOKEN, COMMAND_MANAGER_TOKEN, FORMATTER_MANAGER_TOKEN } from '../../public-api';
+import { IAppConfig, ICommandExecArguments, ICommandNode } from '../../types';
+import { createProgram, buildHierarchy, initializeCommand } from '../../utils';
+import { createMcpHandler, Implementation, McpServer, McpServerFactory } from '@modelcontextprotocol/server';
+import { createServer } from 'http';
+import { createMCPServer } from './utils';
 
 /**
  * Main class for creating CLI applications
  */
 @injectable()
-export class Clapp implements IClapp {
+export class MCPEngine implements IEngine {
   @inject(CLAPP_LOGGER_TOKEN) private readonly logger!: TLogger;
-  @inject(CLI_CONFIG_TOKEN) private readonly config!: ICliConfig;
+  @inject(APP_CONFIG_TOKEN) private readonly config!: IAppConfig<Implementation>;
   @inject(EVENT_BUS_TOKEN) private readonly eventBus!: IEventBus;
   @inject(COMMAND_MANAGER_TOKEN) private readonly pluginManager!: IPluginManager<IPluginCommand>;
   @inject(FORMATTER_MANAGER_TOKEN) private readonly formatterManager!: IPluginManager<IPluginFormatter>;
 
-  private program!: Command;
+  private serverFactory!: McpServerFactory;
 
   /**
    * Initialize the CLI application asynchronously
    * @param argv Process arguments used to detect informational runs (`--help`, `--version`);
    *   defaults to `process.argv`
    */
-  async initialize(argv: readonly string[] = process.argv): Promise<void> {
+  async initialize(): Promise<void> {
     const commandDefinitions = await this.pluginManager.getDefinitions();
-    this.program = createProgram(this.config);
-
-    if (commandDefinitions.length === 0 && !isInformationalInvocation(argv)) {
-      // Discovery found nothing: the patterns may not match the application root, so the
-      // help of the program would list no commands. The CLI still prints its help to
-      // stdout and exits successfully, the warning is only a hint on stderr. Informational
-      // runs (`--help`, `--version`) print the requested text and exit successfully, so the
-      // hint would only be noise there.
-      console.error('warning: no commands found — check plugin discovery patterns');
-    }
+    // this.serverFactory =  createMCPServer(this.config.engine);
+    this.serverFactory = this.getServerFactory();
 
     this.createCommands(buildHierarchy(commandDefinitions));
-    // Registered after the subcommands on purpose: the root tolerates extra operands so
-    // that its action handler reports an unknown command instead of commander's
-    // `too many arguments` error, while the subcommands keep strict argument checks
-    // (`allowExcessArguments` is inherited by subcommands at creation time only).
-    this.program.allowExcessArguments();
+  }
+
+  private async createServer(): Promise<McpServer> {
+    return await createMCPServer(this.config.engine);
   }
 
   private log(message: string, data: unknown, level?: UConsoleLevels) {
@@ -64,8 +58,14 @@ export class Clapp implements IClapp {
    * Runs command line argument processing
    * @param argv Command line arguments
    */
-  public async run(argv?: string[]): Promise<void> {
-    await this.program.parseAsync(argv);
+  public async run(): Promise<void> {
+    const handler = createMcpHandler(() => this.createServer());
+    // `createMcpHonoApp()` arms localhost host/origin validation by default; bind loopback explicitly to match.
+    const app = createMcpHonoApp();
+    app.all('/mcp', (c) => handler.fetch(c.req.raw));
+    serve({ fetch: app.fetch, port, hostname: '127.0.0.1' }, () => {
+      console.error(`[server] listening on http://127.0.0.1:${port}/mcp`);
+    });
   }
 
   private async _commandAction(id: string, { name, args, opts }: ICommandExecArguments) {

@@ -1,7 +1,7 @@
 import { ICommandArgument, ICommandConfig, ICommandOption, IPluginCommandDefinition } from '@clapp/common';
 import type { Option } from 'commander';
 import { Argument, Command, CommanderError, createOption } from 'commander';
-import { ICliConfig, ICommandNode } from '../types';
+import { IAppConfig, ICommandNode } from '../types';
 
 export function buildCommandArgument(argConfig: ICommandArgument): Argument {
   let commandArgument = argConfig.name;
@@ -138,7 +138,7 @@ export function buildHierarchy(commandDefinitions: IPluginCommandDefinition[]): 
  * @param config CLI configuration used for the program
  * @returns Configured Commander program
  */
-export function createProgram({ name, description, version }: ICliConfig): Command {
+export function createProgram({ name, description, version }: IAppConfig): Command {
   const program = new Command();
   program //
     .name(name)
@@ -161,24 +161,7 @@ export function createProgram({ name, description, version }: ICliConfig): Comma
   return program;
 }
 
-/**
- * Flags that make a run informational: commander prints the requested help or version text
- * and exits successfully without running any command.
- */
-const INFORMATIONAL_FLAGS = ['-h', '--help', '-V', '--version'];
 
-/**
- * Detects an informational invocation (`--help`, `-h`, `--version`, `-V`).
- *
- * Commander handles these flags itself, prints the requested text and exits with code 0, so
- * diagnostics about command discovery are noise for such runs. Checking the raw arguments is
- * enough here because commander recognises these flags anywhere in the argument list.
- * @param argv Process arguments (`process.argv` shape)
- * @returns `true` when the invocation only requests help or version
- */
-export function isInformationalInvocation(argv: readonly string[]): boolean {
-  return argv.some((argument) => INFORMATIONAL_FLAGS.includes(argument));
-}
 
 /**
  * Maps a caught CLI error to a process exit code.

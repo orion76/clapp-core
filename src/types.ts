@@ -10,19 +10,9 @@ export interface ICommandNode {
   children: ICommandNode[];
 }
 
-/**
- * Options accepted by `initApp`. Exactly one of `configPath` (YAML file) or
- * `config` (in-memory `ICliConfig`) may be provided.
- */
 export interface IInitAppOptions {
-  /** Path to the YAML configuration file. */
   configPath?: string;
-  /** In-memory CLI configuration; alternative to `configPath`. */
-  config?: ICliConfig;
-  /** Application root used to resolve relative discovery patterns. Defaults to the config directory or cwd. */
   appRoot?: string;
-  /** Process arguments used to detect informational runs (`--help`, `--version`). Defaults to `process.argv`. */
-  argv?: string[];
 }
 
 /**
@@ -43,15 +33,20 @@ export type TAppRuntime = 'node' | 'tsx' | 'bun' | 'deno';
 /**
  * CLI application configuration
  */
-export interface ICliConfig {
+export interface IAppConfig<E extends {} = {}> {
   name: string;
   description: string;
   version: string;
   plugins: Record<UPluginTypes, IPluginDiscoveryConfig>;
   loggers: Record<ULoggerNames, ILoggerConfig>;
+  engine: E;
 }
 
-export type TCliConfigOverride = Omit<ICliConfig, 'plugins' | 'loggers'> & {
+export type TCliConfigOverride = Omit<IAppConfig, 'plugins' | 'loggers'> & {
   plugins?: Record<UPluginTypes, IPluginDiscoveryConfig>;
   loggers?: Record<ULoggerNames, ILoggerConfig>;
 };
+export interface IEngine {
+  run(argv: readonly string[]): Promise<void>;
+  initialize(): Promise<void>;
+}

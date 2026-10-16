@@ -3,7 +3,8 @@ import type { ServiceIdentifier } from 'inversify';
 
 import type { IClapp, IPluginCommand, IPluginContext, IPluginFormatter } from '@clapp/common';
 import { ILoggerCollection, TLogger } from '@orion76/logger';
-import { ICliConfig, ULoggerNames } from '../types';
+import { IAppConfig, ULoggerNames } from '../types';
+import { IEngine } from '../engines/engine-facade.base';
 
 export const LOGGER_COLLECTION_TOKEN: ServiceIdentifier<ILoggerCollection<ULoggerNames>> = Symbol('LOGGER_COLLECTION_TOKEN');
 
@@ -21,10 +22,12 @@ export const FORMATTER_MANAGER_TOKEN: ServiceIdentifier<IPluginManager<IPluginFo
 /**
  * Injection token of the resolved CLI configuration used by `Clapp`.
  */
-export const CLI_CONFIG_TOKEN: ServiceIdentifier<ICliConfig> = Symbol('CLI_CONFIG');
+export const APP_CONFIG_TOKEN: ServiceIdentifier<IAppConfig> = Symbol('CLI_CONFIG');
 
 /**
  * Injection token of the CLI application instance.
  */
 export const CLAPP_TOKEN: ServiceIdentifier<IClapp> = Symbol('CLAPP_TOKEN');
 export const CLAPP_LOGGER_TOKEN: ServiceIdentifier<TLogger> = Symbol('CLAPP_LOGGER_TOKEN');
+
+export const ENGINE_TOKEN: ServiceIdentifier<IEngine> = Symbol('ENGINE_TOKEN');
