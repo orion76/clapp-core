@@ -1494,3 +1494,95 @@ reports:
       barrel `packages/ai/plugins/public-api.ts`, `plugins/**` вне `tsconfig.build.json`), поэтому
       живая проверка выполняется на временном хосте в `tmp/` (каталог в `.git/info/exclude`), а
       `brief` подключается из `packages/ai/plugins/commands/brief` — команда самодостаточна.
+  - ref: д1
+    status: done
+    by: planner
+    at: 2026-10-17T11:40
+    text: |
+      Пункт `д1` закрыт по отчёту тестировщика (`messages/tester-planner.yml`, `result: passed`,
+      0 дефектов, 28/28 живых проверок клиентом + отдельный сырой прогон stdout).
+
+      Как проверялось. Реальный клиент `@modelcontextprotocol/client@2.3.1` поставлен в отдельный
+      harness `tmp/mcp-live-harness/` (в `.git/info/exclude`); корневой `package.json`/lock не
+      тронуты, HEAD на момент прогона — `c92846d`, правок исходников не было. Сервер запускался из
+      исходников: `tsx --tsconfig tmp/mcp-live-harness/tsconfig.json packages/core/src/bin/clapp-mcp.ts`
+      с временным хостом `tmp/mcp-live-harness/app` (`CLAPP_APP_ROOT`, `CLAPP_CONFIG_PATH`) и
+      paths-режимом (dist не использовался — в `packages/{common,command}/dist` нет `COMMAND_KIND_*`).
+      Состав сущностей: временные команды `demo/*` (группа, статический и параметризованный ресурсы,
+      tool с успехом/`success:false`/исключением/отсутствующим форматтером/без форматтера) и
+      реальная `brief` из `packages/ai/plugins/commands/brief`; форматтеры — MCP-набор
+      `packages/core/plugins/mcp-formatters/*/*.plugin.{js,ts}`.
+
+      Результаты (все зелёные):
+      - `initialize` → `serverInfo` = name/version/description из `IAppConfig`; capabilities
+        tools/resources/prompts с `listChanged: true`.
+      - `tools/list` — 4 сущности, схемы из `ICommandConfig` (required/type/default/enum корректны),
+        `annotations.readOnlyHint: false`; `resources/list` — статический `clapp://demo/status`;
+        `resources/templates/list` — `clapp://demo/user{?name,verbose,limit}`; `prompts/list` —
+        `brief` (goal required, depth optional).
+      - Вызовы возвращают ровно вывод MCP-форматтеров (`ordered-list`/`key-value`/`table`, plain text):
+        tool с дефолтом схемы и boolean-опцией; статический ресурс; шаблон с query, где boolean и
+        number декодированы в типы (`verbose=false` не стал truthy-строкой); prompt — одно
+        user-сообщение с текстом.
+      - Негатив: неверные аргументы и неверный тип опции → `isError` (валидация схемой SDK);
+        `success: false` и rejected action → `isError` с причиной; отсутствующий форматтер → `isError`
+        с понятным сообщением без фолбэка на CLI-набор; неизвестные tool/prompt/URI — ошибки запроса;
+        строгий матчинг шаблона (без обязательной переменной — `Resource not found`).
+      - Команда без `formatter` (`demo/no-formatter`, а также реальная `skill-add`) не попала ни в один
+        список и отмечена в stderr: `[mcp] command '...' is not exposed: no formatter declared`;
+        узел-группа тоже не экспонируется.
+      - Соединение живо после всех ошибок (списки и успешный вызов отвечают дальше).
+      - Чистота stdout: 7/7 непустых строк — JSON-RPC с `jsonrpc: "2.0"`, ни `[mcp]`, ни debug-вывода;
+        с включённым логгером (`loggers.clapp_cli.enabled: true`) и падающими командами — 4 JSON-RPC
+        строки и 0 не-JSON, диагностика ушла в stderr.
+
+      Наблюдения (не дефекты движка, внесены в отчёт для интеграции хоста):
+      1. Один неразрешимый модуль в паттернах discovery валит загрузку **всего** типа плагинов:
+         `board/list`/`board/next` тянут отсутствующий `packages/ai/plugins/public-api.js` →
+         `PluginLoaderException`, `MCPEngine.initialize` reject, exit 1, stdout пуст. Частичного
+         пропуска битых модулей нет; паттерны MCP-хоста не должны включать такие файлы.
+         Это предсуществующее состояние `@clapp/ai` (пункты 2–4 записи `г2`), отдельная задача.
+      2. SDK 2.3.1 пишет в stderr `Tool name validation warning` для имён с `/` (регистрация проходит);
+         риск зафиксирован в § 5 концепции.
+      3. У resource нет поля `readOnlyHint` — аннотация клиенту не передаётся (задокументировано в
+         `register-resources.ts`).
+      4. При включённом логгере без `name`/`prefix` префикс рендерится как `[undefined]`; логгер по
+         умолчанию выключен, stdout не засоряется — вне объёма задачи.
+  - ref: д
+    status: done
+    by: planner
+    at: 2026-10-17T11:40
+    text: |
+      Группа «Живая проверка прототипа» закрыта: `д1` — `done`.
+  - ref: г
+    status: done
+    by: planner
+    at: 2026-10-17T11:40
+    text: |
+      Группа «Команды проекта под контракт MCP» закрыта: `г2` — `done` (prompt-команда `brief`,
+      проверена вживую в `д1`), `г1` — `deferred` по решению пользователя (2026-10-16): команды,
+      печатающие сами, пока не трогаем; в MCP они не экспонируются (проверено в `д1` на `skill-add`).
+  - ref: core-mcp-engine
+    status: done
+    by: planner
+    at: 2026-10-17T11:40
+    text: |
+      Задача `core-mcp-engine` закрыта: все группы (`а`, `б`, `в`, `г`, `д`) и все пункты разрешены —
+      пункты `done`, `г1` — `deferred` по решению пользователя. Критерии готовности `_task.md`
+      выполнены: вид команды в определении плагина (`kind` + маркер `group`) добавлен и
+      экспортируется; MCP-движок в ядре собран из заготовки, запускается отдельным bin
+      (`clapp-mcp`) по stdio, отдаёт команды на трёх поверхностях по их видам, не пишет в stdout,
+      ошибки приходят как `isError`; живая проверка по stdio выполнена и зафиксирована в журнале.
+
+      Вне задачи (осознанно):
+      - документация к виду команды — релизный пункт `б12`, коммитируемые тесты (in-memory клиент по
+        трём поверхностям) — `г14` (оба в `.opencode/releases/1.0-1/_todo.yml`);
+      - перевод команд, печатающих сами (`board/list`, `board/next`, `skill-add`), и общий
+        `CommandExecutor` с CLI — фаза 3/6 концепции, отдельная работа (`г1` deferred);
+      - HTTP-транспорт, нотификации, auth — вне MVP концепции;
+      - починка хоста `@clapp/ai` (сигнатура `run`, appRoot/patterns, отсутствующий barrel,
+        `plugins/**` вне `tsconfig.build.json`) — предсуществующие дефекты, предложены отдельной
+        задачей; для живой проверки использован временный хост в `tmp/`.
+
+      Коммиты: перед прогоном дерево зафиксировано (`6545783`, `d801959`, `c92846d`). Итоги прогона и
+      записи журнала/статусов оставлены в рабочем дереве (правило профиля `step`).

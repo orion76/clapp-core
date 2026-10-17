@@ -17,11 +17,11 @@ groups:
   - id: г
     title: Команды проекта под контракт MCP
     executor: coder
-    status: todo
+    status: done
   - id: д
     title: Живая проверка прототипа
     executor: tester
-    status: in-progress
+    status: done
 items:
   - id: а1
     group: а
@@ -191,7 +191,7 @@ items:
     group: д
     text: Живая проверка прототипа по stdio
     executor: tester
-    status: in-progress
+    status: done
     actions:
       - 'Запустить движок (tsx) и подключиться клиентом @modelcontextprotocol/client по stdio: списки и вызовы по всем трём поверхностям (tools/resources/prompts)'
       - 'Проверить негативные сценарии: неверные аргументы, success: false → isError, отсутствующий MCP-форматтер, команда без formatter не попала в список; убедиться, что stdout не засоряется'
