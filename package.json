@@ -9,6 +9,9 @@
     "dist",
     "docs"
   ],
+  "bin": {
+    "clapp-mcp": "./dist/bin/clapp-mcp.js"
+  },
   "exports": {
     ".": {
       "default": "./dist/clapp-core.js",
@@ -31,7 +34,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "build": "npm run clean && rollup -c",
+    "build": "npm run clean && rollup -c && chmod +x dist/bin/clapp-mcp.js",
     "watch": "npm run clean && tsc --watch",
     "clean": "rm -rf dist",
     "pack": "npm pack",

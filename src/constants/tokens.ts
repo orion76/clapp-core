@@ -3,8 +3,7 @@ import type { ServiceIdentifier } from 'inversify';
 
 import type { IClapp, IPluginCommand, IPluginContext, IPluginFormatter } from '@clapp/common';
 import { ILoggerCollection, TLogger } from '@orion76/logger';
-import { IAppConfig, ULoggerNames } from '../types';
-import { IEngine } from '../engines/engine-facade.base';
+import { IAppConfig, IEngine, ULoggerNames } from '../types';
 
 export const LOGGER_COLLECTION_TOKEN: ServiceIdentifier<ILoggerCollection<ULoggerNames>> = Symbol('LOGGER_COLLECTION_TOKEN');
 

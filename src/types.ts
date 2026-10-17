@@ -33,13 +33,12 @@ export type TAppRuntime = 'node' | 'tsx' | 'bun' | 'deno';
 /**
  * CLI application configuration
  */
-export interface IAppConfig<E extends {} = {}> {
+export interface IAppConfig {
   name: string;
   description: string;
   version: string;
   plugins: Record<UPluginTypes, IPluginDiscoveryConfig>;
   loggers: Record<ULoggerNames, ILoggerConfig>;
-  engine: E;
 }
 
 export type TCliConfigOverride = Omit<IAppConfig, 'plugins' | 'loggers'> & {

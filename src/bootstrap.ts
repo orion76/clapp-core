@@ -54,6 +54,7 @@ export async function bootstrapApp(engineClass: Type<IEngine>, container: Contai
     { config: config.plugins[PLUGIN_FORMATTER_TYPE] },
     container,
   );
+
   const app = container.get(ENGINE_TOKEN);
 
   await app.initialize();

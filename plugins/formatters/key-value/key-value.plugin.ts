@@ -4,7 +4,7 @@ import { NodePlugin } from '@orion76/node-plugin';
 import { PLUGIN_FORMATTER_TYPE, type IPluginFormatterDefinitionData } from '@clapp/common';
 import type { IKeyValueData } from '@clapp/command';
 
-import { PluginFormatterBase } from '../formatter.base';
+import { PluginFormatterBase } from '../../../src/formatters/formatter.base';
 import { renderKeyValue } from './lib';
 
 /**
