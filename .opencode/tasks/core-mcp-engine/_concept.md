@@ -31,7 +31,8 @@
 
 - `:20` импорт из `@modelcontextprotocol/server`: `createMcpHandler`, `Implementation`, `McpServer`,
   `McpServerFactory`; `:21` — `createServer` из `node:http` (не используется);
-- `:30` `config: IAppConfig<Implementation>` — `Implementation` SDK подставлен как форма `engine`;
+- `:30` `config: IAppConfig<Implementation>` — `Implementation` SDK подставлен как форма `engine`
+  (поля `engine` у `IAppConfig` не будет и generic-параметра тоже — решение 2026-10-16, § 6.1);
 - `:35` `serverFactory!: McpServerFactory` — объявлено, но не заполняется;
 - `:42-48` `initialize()` — определяет команды и вызывает **commander**-метод `createCommands`
   (движку MCP commander не нужен);
@@ -58,8 +59,9 @@
 
 ### 1.3. Контракты, от которых зависит маппинг в MCP
 
-- `packages/core/src/types.ts`: `ICommandNode` (`:8-11`), `IAppConfig<E>` (`:36-43`, поле
-  `engine: E`), `IEngine` (`:49-52`, `run(argv)/initialize()`), `ICommandExecArguments` (`:23-27`);
+- `packages/core/src/types.ts`: `ICommandNode` (`:8-11`), `IAppConfig` (ни generic-параметра, ни поля
+  `engine` — решение 2026-10-16, § 6.1; до него черновик фазы 1 держал `IAppConfig<E>` с `engine: E`),
+  `IEngine` (`run(argv)/initialize()`), `ICommandExecArguments`;
 - `packages/common/src/types/plugin.ts`: `ICommandConfig` (`:6-11`), `IPluginCommandDefinition`
   (`:17-30`, есть `parent`, `formatter`, `config`, `pluginClass`), `IPluginCommand` (`:37-41`),
   `ICommandResult` (`:58-63`, `success`/`error?`/`data?`);
@@ -70,8 +72,9 @@
 - `packages/common/src/types/formatter.ts`: `IPluginFormatter.format(data): Promise<string>`;
 - `packages/common/src/types/events.ts`: карта событий `command:start/arguments/run/end/error`
   (`:36-47`), `IEventBus` (`:56-86`);
-- `packages/core/src/config/config.ts`: `APP_CONFIG_DEFAULT` без поля `engine`; в
-  `packages/ai/clapp.config.yml` ключа `engine` нет → `this.config.engine` на рантайме `undefined`;
+- `packages/core/src/config/config.ts`: `APP_CONFIG_DEFAULT` — общий дефолт ядра, движков не упоминает
+  (поля `engine` в нём нет и не будет — решение 2026-10-16, § 6.1); в `packages/ai/clapp.config.yml`
+  ключа `engine` нет и он не нужен: опции движка задаются при его создании в точке входа;
 - `packages/core/src/bootstrap.ts:23-61`: движок — параметр `bootstrapApp(engineClass, container,
   options)`, биндится в `ENGINE_TOKEN`; выбор движка остаётся за точкой входа хоста.
 
@@ -295,8 +298,9 @@ commander-код, а форматтеры переиспользуются ка�
   `@clapp/ai`);
 - двухэровность протокола (2025 legacy / 2026 modern): `serveStdio`/`createMcpHandler` решают эру
   сами, но `legacy: 'serve'|'stateless'|'reject'` — осознанный выбор;
-- `IAppConfig.engine` типизирован, но нигде не заполнен: нужен нормальный тип опций движка и
-  согласование `name`/`version`/`description` приложения с `serverInfo` (SDK `Implementation`);
+- согласование `name`/`version`/`description` приложения с `serverInfo` (SDK `Implementation`):
+  `name`/`version`/`description` берутся из `IAppConfig`; опций движка нет (решение 2026-10-16: тип
+  `IMCPEngineOptions` и `MCP_ENGINE_OPTIONS_TOKEN` не вводим);
 - имена сущностей с `/` (`board/list`, решение В8): схемы SDK имя не валидируют (regex-ограничений в
   `@modelcontextprotocol/core` нет), спека задаёт лишь рекомендации, поэтому слэш технически
   допустим; риск — клиент с более строгой проверкой. Держать имя в одном месте (генератор имён), чтобы
@@ -313,10 +317,30 @@ commander-код, а форматтеры переиспользуются ка�
 - **Три вида команд** ↔ MCP Resources / Tools / Prompts (см. § 3.0).
 - **Поле `kind` — обязательное**, у узла-группы значение-маркер `group`; 7 существующих определений в
   `packages/ai` обновлены в фазе 1 (фаза закрыта).
-- **Профиль задачи — `normal`**: документация и тесты отложены в релиз `1.0-1` пунктами `б12`/`г14`
-  (с указанием `core-mcp-engine`), сами в задаче не выполняются.
+- **Профиль задачи — `normal`**, с 2026-10-16 переведён в **`step`** (см. «Уточнения» ниже):
+  документация и тесты отложены в релиз `1.0-1` пунктами `б12`/`г14` (с указанием `core-mcp-engine`),
+  сами в задаче не выполняются.
 - **С `CliEngine` изменения не синхронизируются**: он не читает `kind` и остаётся как есть;
   общий executor и приёмник вывода — отдельная работа позже.
+
+**Уточнения (2026-10-16)**
+
+- **Профиль задачи переведён с `normal` на `step`** (по указанию пользователя): за одну постановку
+  исполнитель делает только пункты `_todo.yml`, явно названные пользователем; проверки сборки и
+  прогон тестов выполняются только по явному запросу пользователя (в том числе после закрытия всех
+  пунктов); ревью — только по явному указанию; коммит — единственный, перед стартом работ, результат
+  пунктов остаётся в рабочем дереве. Документация и тесты по-прежнему отложены в релизные `б12`/`г14`.
+
+- **Поля `engine` в `IAppConfig` нет** (уточнение пользователя): общий конфиг ядра —
+  `packages/core/src/config/config.ts` — не знает ни о каком конкретном движке, поэтому из дефолта
+  уходят импорт `engines/mcp/types` и константа `MCP_ENGINE_OPTIONS_DEFAULT`, а у `IAppConfig`
+  убирается и generic-параметр `E`. Сервер-инфо `name`/`version`/`description` по-прежнему берётся из
+  `IAppConfig`.
+
+- **Опции движка не вводим** (уточнение пользователя 2026-10-16): `IMCPEngineOptions` и
+  `MCP_ENGINE_OPTIONS_TOKEN` из модуля движка удалены — сейчас они не нужны и, скорее всего, не
+  понадобятся; когда понадобятся (`instructions` и т.п.) — отдельное решение. Движок получает только
+  `IAppConfig`.
 
 **Ответы пользователя по вопросам (нумерация исходная)**
 
@@ -325,12 +349,14 @@ commander-код, а форматтеры переиспользуются ка�
    до рабочего состояния, SDK остаётся зависимостью ядра (§ 3.5, вариант A).
 3. **Состав MVP — все три поверхности** (В3 → 3): `resource`, `tool`, `prompt`; `group` — только
    контейнер, на MCP не отображается.
-4. **Форматтер обязателен** (В4): форматтеры остаются плагинами, набор зависит от движка — для MCP
-   используется **отдельный класс formatter PluginManager со своим набором плагинов для stdio**
-   (В5): своя константа типа плагина, свой DI-токен и свой набор discovery-паттернов; команды
+4. **Форматтер обязателен** (В4): форматтеры остаются плагинами, а набор зависит от движка — для MCP
+   используется **отдельный набор плагинов для stdio** (В5): тот же formatter PluginManager и тот же
+   тип плагина, отличается **только набор discovery-паттернов** в конфиге потребителя; команды
    продолжают ссылаться на привычные идентификаторы (`table`/`ordered-list`/`key-value`), но
-   резолвятся в наборе MCP. Фолбэка на CLI-форматтеры нет: если для используемого идентификатора
-   MCP-плагин не зарегистрирован — движок сообщает об ошибке. Перехват stdout отклонён.
+   резолвятся в наборе MCP (уточнение пользователя 2026-10-16: отдельный тип плагина/менеджер не
+   вводим — MCP-потребитель `mcp-workflow` задаёт паттерны своим конфигом). Базовый класс форматтера
+   один и живёт в `packages/core/src/`. Фолбэка на CLI-форматтеры нет: если для используемого
+   идентификатора MCP-плагин не зарегистрирован — движок сообщает об ошибке. Перехват stdout отклонён.
    Команды без `formatter`, печатающие сами (`board/list`, `board/next`, `skill-add`), **в MCP не
    экспонируются** (предупреждение в stderr); сами команды проекта в этой задаче не трогаем — их
    перевод на контракт «данные + `formatter`» отложен (§ 7).
@@ -377,17 +403,20 @@ commander-код, а форматтеры переиспользуются ка�
 - место: `packages/core/src/engines/mcp/**`, класс реализует `IEngine`, выбирается в точке входа
   (`bootstrapApp`/`ENGINE_TOKEN`) и запускается отдельным bin;
 - транспорт: `serveStdio(factory)`; фабрика создаёт `McpServer` на соединение и получает DI-контейнер
-  движка через замыкание; сервер-инфо (`name`/`version`/`instructions`) — из `IAppConfig`;
+  движка через замыкание; сервер-инфо: `name`/`version`/`description` — из `IAppConfig` (опций движка
+  нет);
 - поверхности: `tool` → `registerTool`, `resource` → `registerResource` (URI или `ResourceTemplate`),
   `prompt` → `registerPrompt` — данные по конвенциям § 6.2; `group` не экспонируется и служит
   префиксом пути;
 - исполнение вызова: собственный конвейер движка (события `command:*` → `getArguments` → `action`) —
   без общего `CommandExecutor` с CLI (отложен);
-- рендер: **отдельный formatter PluginManager для MCP** (своя константа типа плагина, свой DI-токен,
-  свой набор discovery-паттернов и свой набор плагинов для stdio — без ANSI), обязательный — без
-  фолбэка на CLI-форматтеры; команды без `formatter` не экспонируются; stdout не используется;
-- конфигурация: тип опций движка в `IAppConfig.engine` (сервер-инфо, возможно будущие опции
-  транспорта), сейчас поле не заполнено — дефолт в `config.ts` надо задать.
+- рендер: **отдельный набор MCP-плагинов форматтеров на том же formatter PluginManager** (тот же тип
+  плагина, свой каталог и свои discovery-паттерны, которые задаёт конфиг потребителя; вывод без ANSI),
+  обязательный — без фолбэка на CLI-форматтеры; базовый класс форматтера один, в `packages/core/src/`;
+  команды без `formatter` не экспонируются; stdout не используется;
+- конфигурация: опций движка нет (`IMCPEngineOptions`/`MCP_ENGINE_OPTIONS_TOKEN` не вводим — решение
+  2026-10-16); движок получает только `IAppConfig`; поля `engine` в `IAppConfig` нет, общий дефолт
+  ядра движков не упоминает.
 
 ## 7. Порядок работ
 

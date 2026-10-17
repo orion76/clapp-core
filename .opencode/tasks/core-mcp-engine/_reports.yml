@@ -211,3 +211,1286 @@ reports:
       discovery-паттернов; идентификаторы formatter у команд остаются прежними.
       Статус пункта не менялся (todo), текст и действия переписаны под это
       решение; задача и _concept.md приведены в соответствие.
+  - ref: б1
+    status: done
+    by: coder
+    at: 2026-10-16T14:21
+    text: |
+      Пункт б1 закрыт: тип опций MCP-движка описан, дефолт `IAppConfig.engine`
+      задан, заготовка движка переведена на собственный тип опций.
+
+      Изменённые файлы (3 изменённых + 1 новый; `git diff --stat` — 3 файла,
+      12 вставок / 2 удаления):
+      1. packages/core/src/engines/mcp/types.ts — НОВЫЙ файл модуля движка
+         (рядом с mcp.ts/utils.ts, по конвенции structure: типы модуля в его
+         `types.ts`). Содержит:
+         - `IMCPEngineOptions` — тип опций движка для `IAppConfig.engine` с
+           полем `instructions?: string` (MCP-специфичные инструкции, отдаваемые
+           клиенту в ответе `initialize`). В JSDoc зафиксировано разделение:
+           сервер-инфо берётся из `IAppConfig` (`name`/`version`/`description`),
+           а MCP-специфичные и будущие опции транспорта — здесь; опции HTTP
+           (host/port/path) добавляются в этот интерфейс вместе с транспортом,
+           stdio MVP опций не требует (концепция § 6.3).
+         - `MCP_ENGINE_OPTIONS_DEFAULT: IMCPEngineOptions = {}` — дефолт опций
+           движка (все опции необязательны), вынесен в модуль движка по аналогии
+           с `APP_LOGGERS_CONFIG` в `config/loggers.ts`.
+      2. packages/core/src/config/config.ts — в `APP_CONFIG_DEFAULT` добавлено
+         отсутствовавшее поле `engine: MCP_ENGINE_OPTIONS_DEFAULT` (импорт из
+         `../engines/mcp/types`), с комментарием, почему в общий дефолт попадают
+         MCP-опции (все они необязательны и на CLI-запуск не влияют). До правки
+         ключа `engine` в дефолте не было вообще (`git show HEAD:…/config.ts`),
+         а `mergeConfigs` (`utils/config.ts:22`) не создаёт отсутствующий ключ —
+         то есть `config.engine` был `undefined` и в YAML-конфиге без ключа.
+      3. packages/core/src/types.ts — добавлен JSDoc к полю `engine` в
+         `IAppConfig<E>`: поле содержит опции движка, у каждого движка своя форма
+         (`IMCPEngineOptions` у MCP, у CLI опций нет). Сам generic не менялся.
+      4. packages/core/src/engines/mcp/mcp.ts — в заготовке `MCPEngine` тип
+         инъекции конфига заменён: `IAppConfig<Implementation>` →
+         `IAppConfig<IMCPEngineOptions>` (+ `import type { IMCPEngineOptions }
+         from './types'`); из импорта `@modelcontextprotocol/server` убран
+         ставший ненужным `Implementation`. Больше `Implementation` в mcp.ts не
+         используется (остался только в заготовке `utils.ts:createMCPServer`).
+
+      `packages/ai/clapp.config.yml` не менял: ключа `engine` там нет и не
+      требуется — `mergeConfigs` оставляет значение по умолчанию, если ключ в
+      оверрайде отсутствует. Проверено рантаймом (см. ниже): после правки
+      загруженный конфиг `@clapp/ai` содержит `engine: {}`. Добавлять
+      `instructions` в YAML (если понадобится) — дело точки входа, пункт б4;
+      `TCliConfigOverride` поле `engine` уже пропускает.
+
+      Команды и результат:
+      1) `npx tsc --noEmit -p packages/core/tsconfig.json` (baseline до правки —
+         11 ошибок, после — 12): исчезла целевая ошибка пункта
+         `src/config/config.ts(5,14): error TS2741: Property 'engine' is missing
+         in type … but required in type 'IAppConfig<{}>'`.
+         Остаются предсуществующие ошибки вне рамок пункта:
+         - `../../../@orion76/projects/logger/src/logger-factory.ts(7,11)` и
+           `logger.ts(16,21)` — TS2707 (внешний пакет, известный долг);
+         - `src/constants/tokens.ts(7,25)` — TS2307
+           `../engines/engine-facade.base` (незавершённая core-cli-facade);
+         - заготовка mcp.ts: TS2551 (`getServerFactory`, :46), TS2304
+           (`createMcpHonoApp`/`serve`, :65/:67), TS7006 (:66), TS18004 (:67),
+           TS2339 (`program`, :144) — снимаются пунктами б2/б4.
+         Новая ошибка ровно одна и она — ожидаемый шов пункта б3:
+         `src/engines/mcp/mcp.ts(52,34): error TS2345: Argument of type
+         'IMCPEngineOptions' is not assignable to parameter of type
+         '{ version: string; name: string; … }'` в заготовке
+         `private async createServer()` — `createMCPServer` (`./utils.ts:3`)
+         до сих пор типизирован SDK-типом `Implementation`, тогда как теперь в
+         `IAppConfig.engine` лежат опции движка. До правки эта строка
+         компилировалась только потому, что `engine` был ошибочно типизирован
+         как `Implementation`; сборку сервер-инфо из `IAppConfig` +
+         `instructions` делает пункт б3 (его действие «Сервер-инфо и
+         instructions — из IAppConfig»), а саму `createServer` убирает б2 —
+         поэтому здесь её не трогал (рамки б1). Других новых ошибок нет.
+      2) `npx prettier --check` по всем 4 файлам — «All matched files use
+         Prettier code style!» (exit 0).
+      3) Рантайм-проверка `npx tsx tmp/mcp-engine-config-check.ts` (черновик в
+         `tmp/`, в git не попадает): `APP_CONFIG_DEFAULT.engine` = `{}` и это
+         тот же объект, что `MCP_ENGINE_OPTIONS_DEFAULT`; `loadConfig(
+         'packages/ai/clapp.config.yml', 'packages/ai')` → `engine` определён
+         (`{}`) — то есть YAML без ключа `engine` теперь получает дефолт, а не
+         `undefined`.
+
+      Профиль задачи `normal`: тесты/документация в задачу не входят (релизные
+      пункты г14/б12); сборку и полный прогон тестов не запускал. Ветка `1.0-1`,
+      коммитов не делал.
+  - ref: б1
+    status: todo
+    by: planner
+    at: 2026-10-16T14:31
+    text: |
+      Пункт возвращён в todo по уточнению пользователя (append-only отчёт о смене
+      статуса). Решение: (1) общий дефолтный конфиг ядра не должен упоминать
+      конкретные движки, а поля engine в IAppConfig быть не должно вовсе — «на
+      самом деле это поле не нужно»; (2) проверки сборки (build/typecheck/тесты)
+      кодер выполняет один раз, после закрытия всех пунктов todo, а не по ходу
+      пункта.
+
+      Реализация пункта от 2026-10-16T13:30 этой трактовке противоречит:
+      MCP_ENGINE_OPTIONS_DEFAULT и импорт ../engines/mcp/types попали в
+      APP_CONFIG_DEFAULT, а заготовка mcp.ts получила
+      IAppConfig<IMCPEngineOptions> и чтение this.config.engine.
+
+      Что сделано планировщиком (правки в файлах задачи, статус менялся только
+      здесь и в пункте б1):
+      - пункт б1 переписан под новую трактовку: убрать из IAppConfig поле engine
+        и generic-параметр E, убрать из общего дефолта engine, импорт
+        engines/mcp/types и константу MCP_ENGINE_OPTIONS_DEFAULT; тип опций
+        движка (IMCPEngineOptions) держать в модуле движка и передавать опции
+        при создании движка в точке входа (пункт б4); сервер-инфо
+        name/version/description — из IAppConfig;
+      - уточнены действия пунктов б3 (instructions — из опций движка, а не из
+        IAppConfig) и б4 (опции движка передаются движку в точке входа);
+      - _task.md (требования 5 и 10, контекст — «Решение по конфигу движка»,
+        состояние репозитория) и _concept.md (§ 1.2, § 1.3, § 5, новый блок
+        «Уточнения (2026-10-16)» в § 6.1, § 6.3) приведены в соответствие.
+
+      Дальше: кодер переделывает б1 по новой формулировке; статус снова done —
+      новым отчётом.
+  - ref: б1
+    status: done
+    by: coder
+    at: 2026-10-16T14:40
+    text: |
+      Пункт б1 закрыт заново, по новой формулировке. Эта запись ЗАМЕНЯЕТ
+      реализацию по старой трактовке (отчёт coder от 2026-10-16T14:21): та
+      реализация противоречила решению пользователя и отменена планировщиком
+      (отчёт от 2026-10-16T14:31).
+
+      Что снято со старой реализации: ключ `engine: MCP_ENGINE_OPTIONS_DEFAULT` и
+      импорт `../engines/mcp/types` в `APP_CONFIG_DEFAULT`; generic-параметр `E` и
+      поле `engine` у `IAppConfig`; `IAppConfig<Implementation>` /
+      `IAppConfig<IMCPEngineOptions>` и чтение `this.config.engine` в заготовке
+      `mcp.ts`; константа `MCP_ENGINE_OPTIONS_DEFAULT`. Общий дефолт ядра снова не
+      упоминает ни один движок; опции движка живут только в модуле движка
+      (`packages/core/src/engines/mcp/types.ts`) и передаются движку при создании
+      в точке входа — пункт б4.
+
+      Изменения в packages/core/src (относительно HEAD: 2 modified + 1 новый
+      untracked):
+      1. packages/core/src/types.ts — `IAppConfig<E extends {} = {}>` →
+         не-generic `IAppConfig`; поле `engine` и его JSDoc (со ссылкой на
+         `IMCPEngineOptions`) удалены. `TCliConfigOverride` правок не потребовал:
+         `Omit<IAppConfig, 'plugins' | 'loggers'>` теперь даёт ровно
+         `{ name; description; version }` — то, что остаётся в YAML-оверрайде.
+      2. packages/core/src/config/config.ts — откат старой реализации: удалены
+         импорт `../engines/mcp/types`, ключ `engine: MCP_ENGINE_OPTIONS_DEFAULT`
+         и комментарий к нему. Файл совпал с HEAD (`git diff` по нему пуст),
+         поэтому в списке изменённых git его нет — это и есть целевое состояние.
+      3. packages/core/src/engines/mcp/types.ts (новый, untracked) — оставлен
+         `IMCPEngineOptions` (`instructions?: string`) как описание опций движка;
+         JSDoc переписан так, чтобы не ссылаться на `IAppConfig.engine` («опции
+         передаются движку при создании в точке входа; дефолтный конфиг ядра о
+         движках не знает; сервер-инфо name/version/description — из
+         `IAppConfig`»); константа-дефолт `MCP_ENGINE_OPTIONS_DEFAULT` удалена —
+         больше не нужна, собственные дефолты опций — дело самого движка.
+      4. packages/core/src/engines/mcp/mcp.ts — `IAppConfig<Implementation>` →
+         не-generic `IAppConfig`; `Implementation` убран из импорта
+         `@modelcontextprotocol/server`; удалён ставший ненужным импорт
+         `import type { IMCPEngineOptions } from './types'`; убраны
+         закомментированная строка `// this.serverFactory =
+         createMCPServer(this.config.engine);` и чтение `this.config.engine` в
+         `private async createServer()`. Инъекция
+         `@inject(APP_CONFIG_TOKEN) private config!: IAppConfig` оставлена
+         намеренно: сервер-инфо `name`/`version`/`description` берётся из неё
+         (б3); сейчас эта property больше не читается — ожидаемый шов, не мёртвый
+         код (в tsconfig нет `noUnusedLocals`).
+
+      Не менялись: packages/core/src/utils/config.ts, constants/tokens.ts,
+      bootstrap.ts, cli-движок, packages/ai (в т.ч. packages/ai/clapp.config.yml —
+      ключа `engine` там нет и не требуется). `mergeConfigs`/`createAppConfig`/
+      `loadConfig` работают с `IAppConfig` без generic и правок не требуют.
+
+      Проверки (сборку/typecheck/тесты не запускал — по указанию пользователя они
+      выполняются один раз, после закрытия всех пунктов б1–б4):
+      1) grep по packages/core/src, packages/ai/src, src (`src/` в репозитории
+         отсутствует):
+         - `IAppConfig<` — 0 совпадений;
+         - `MCP_ENGINE_OPTIONS_DEFAULT` — 0 совпадений в коде (остались только
+           упоминания в файлах задачи как описание требования);
+         - `config.engine` и `\.engine\b` — 0 совпадений;
+         - `\bengine\b` — только осмысленные вхождения: JSDoc `IMCPEngineOptions`
+           и предсуществующий импорт `../engines/engine-facade.base` в
+           constants/tokens.ts (незавершённая core-cli-facade, вне рамок б1);
+         - `IAppConfig` в коде — все вхождения без generic, поля `engine` нет ни у
+           одного; в packages/core/tests и packages/ai/tests совпадений по
+           `engine` нет.
+      2) `npx prettier --check` по 4 файлам — «All matched files use Prettier code
+         style!» (exit 0).
+
+      Известный шов (осознанно оставлен б2/б3): в `createServer()` вызов стал
+      `createMCPServer()` без аргумента, тогда как сигнатура
+      `createMCPServer(info: Implementation)` (packages/core/src/engines/mcp/utils.ts:3)
+      аргумент требует. Сборку сервер-инфо из `IAppConfig` + `instructions` и
+      переписывание транспорта делают пункты б2/б3 — их рамки не забегаю; так как
+      typecheck в объёме пункта не запускается, фиксирую это как шов, а не как
+      результат компиляции.
+
+      Ветка `1.0-1`, коммитов не делал. Статус б1 → done выставлен в активном
+      packages/core/.opencode/_todo.yml через симлинк (симлинк цел, targets —
+      tasks/core-mcp-engine/). Группа `б` осталась `todo`: открыты б2, б3, б4.
+  - ref: б2
+    status: in-progress
+    by: coder
+    at: 2026-10-16T15:01
+    text: |
+      Начат пункт б2 «Рабочий MCPEngine в ядре (без commander и без stdout)» —
+      единственный пункт в постановке (профиль step, остальные пункты не трогаю).
+      Объём: реестр сущностей по видам из дерева команд, собственный конвейер
+      исполнения (события → getArguments → action, результат наружу), чистка
+      заготовки от commander-кода, импорта node:http и записи в stdout, пропуск
+      команд без formatter с предупреждением в stderr. Транспорт, сборка
+      сервер-инфо и точка входа/публичный API — не в этом пункте (б3/б4).
+  - ref: б2
+    status: done
+    by: coder
+    at: 2026-10-16T15:03
+    text: |
+      Пункт б2 закрыт. MCPEngine строит реестр сущностей из дерева команд, исполняет
+      вызовы собственным конвейером и больше не тянет commander/HTTP/stdout; команды
+      без formatter в реестр не попадают и предупреждаются в stderr. Транспорт,
+      сервер-инфо и точка входа сознательно не трогались — это б3/б4.
+
+      Изменённые/новые файлы (только внутри packages/core/src/engines/mcp/**):
+      1. packages/core/src/engines/mcp/registry.ts — НОВЫЙ модуль, чистый генератор
+         реестра (без DI и без обращения к PluginManager):
+         - `buildEntityRegistry(nodes: ICommandNode[]): IMCPEntityRegistry` (:28-34)
+           обходит дерево от корней (`collectEntities`, :36-59): узел с детьми — группа,
+           она даёт только сегмент пути (`path = prefix ? `${prefix}/${id}` : id`, :40)
+           и никогда не становится сущностью; лист попадает в список своей поверхности
+           (`surface(registry, kind).push(...)`, :57; switch по видам, :65-74).
+         - Пропуск с причиной (`IMCPEntitySkip.reason`): `kind === COMMAND_KIND_GROUP`
+           (:47-50, «group node without subcommands») и отсутствие `formatter`
+           (:52-55, «no formatter declared»). Проверка группы идёт первой: у группы
+           formatter тоже пуст, и без этого предупреждение было бы неверным.
+         - `PATH_SEPARATOR` (:13) — сегмент пути в одном месте (риск §5 концепции:
+           имя сущности = путь команды и основа URI ресурса).
+      2. packages/core/src/engines/mcp/types.ts — типы модуля (существующий
+         `IMCPEngineOptions` не менялся) в стиле structure-скилла (типы модуля — его
+         `types.ts`): `IMCPEntity` (:33-38: `path`/`kind`/`formatter`/`definition`;
+         `formatter` непустой по построению реестра), `IMCPEntitySkip` (:44-48),
+         `IMCPEntityRegistry` (:55-64: `tools`/`resources`/`prompts` по поверхностям MCP
+         + `skipped`), `IMCPCommandInput` (:74-79: сырой вход конвейера — позиционные
+         `args` и `opts`, то есть форма, которую ждёт контракт плагина
+         `getArguments(args, opts)`; перевод объекта JSON Schema в эту форму — работа
+         поверхности, не конвейера).
+      3. packages/core/src/engines/mcp/mcp.ts — заготовка переписана:
+         - `initialize()` (:56-63): `pluginManager.getDefinitions()` → `buildHierarchy`
+           → `buildEntityRegistry` → `reportSkipped(registry.skipped)` → `this.registry`.
+         - Конвейер `executeCommand(entity, input): Promise<ICommandResult>` (:82-117) —
+           собственный, с CLI не общий (решение §6.1 п. 5): `command:start` → `getInstance
+           (definition.id)` → `command:arguments` → `getArguments(args, opts)` →
+           `command:run` → `action()` → проверка `success === false` → `command:end`,
+           при любой ошибке — `log` + `command:error` + проброс наружу. Результат
+           возвращается вызывающему (поверхности), ничего не печатается.
+         - `reportSkipped` (:127-131) пишет по строке на команду в **`process.stderr`**.
+           Через `this.logger` предупреждать нельзя: `@orion76/logger` отправляет запись
+           в `console[level]` (node_modules/@orion76/logger/dist/logger.js:3-5), то есть
+           в stdout, который при stdio занят протоколом.
+         - Удалено: импорт `commander`/`Command`, `createProgram`/`initializeCommand`,
+           `import { createServer } from 'http'`, `McpServerFactory`/поле `serverFactory`
+           и вызов несуществующего `getServerFactory()` (TS2551 из отчёта б1), методы
+           `createCommands`/`_createCommand`/`parseCommandArgs`, а также
+           `formatCommandResult` с `process.stdout.write` (рендер переезжает на MCP-набор
+           форматтеров и поверхности — в2/в5). JSDoc класса/`initialize`/конвейера
+           переписан под MCP (в заготовке было «Main class for creating CLI
+           applications»).
+         - Не менялось сознательно: тела `createServer()` (:133-135) и `run()` (:144-152)
+           (HTTP-черновик), см. «Швы» ниже.
+
+      Решения, которые стоит подтвердить на ревью (зафиксированы в JSDoc):
+      - `id` в событиях `command:*` — полный путь сущности (`board/list`), а не имя листа
+        команды: это единственное «имя», которое видит MCP-клиент, и оно однозначно;
+        сам плагин резолвится по `definition.id` (`getInstance`), как в CLI.
+      - Отказ команды (`action` бросил, действия нет, `success: false`) — исключение
+        (событие `command:error`), а не возвращённый `success: false`: поверхность
+        (в2/в3/в4) превращает исключение в результат с `isError`. Так у поверхности один
+        путь отказа, и семантика совпадает с CLI-движком.
+      - Лист-группа без подкоманд тоже попадает в `skipped` (с предупреждением): у неё
+        нет поверхности, и молча игнорировать её хуже, чем сказать об этом.
+
+      Проверки (сборку/typecheck/тесты НЕ запускал — профиль `step`, явного запроса не
+      было; убеждался статическими проверками и построчной вычиткой):
+      1) `grep` по packages/core/src/engines/mcp/: `commander`, `node:http`, `from 'http'`,
+         `process.stdout`, `console.log`, `createProgram`, `initializeCommand`,
+         `createCommands`, `_createCommand`, `parseCommandArgs` — 0 совпадений в коде
+         (слова `commander tree` и `console.log` встречаются только в JSDoc как
+         пояснение, почему так нельзя).
+      2) `grep` по репозиторию (`packages`, `src`): `MCPEngine`, `parseCommandArgs`,
+         `serverFactory`, `getServerFactory` — вне файлов задачи остались только
+         предсуществующие совпадения в `packages/core/src/engines/clapp/clapp.ts`
+         (CLI-движок, не трогал) и в устаревшей копии `packages/common/.rollup.cache/.../
+         custom-cli.js` (артефакт сборки, к правке не относится). Внешних потребителей
+         `MCPEngine` и удалённых членов нет — движок по-прежнему не реэкспортируется из
+         public-api (это б4).
+      3) `npx prettier --check packages/core/src/engines/mcp/*.ts` — «All matched files use
+         Prettier code style!» (exit 0). Единственная правка prettier по ходу: в
+         registry.ts длинный импорт констант свёрнут в одну строку (120 символов).
+      4) Построчная вычитка выживших символов: импорты mcp.ts (createMcpHandler и McpServer
+         используются в `run`/`createServer`; EVENT_BUS_TOKEN/IEventBus,
+         COMMAND_MANAGER_TOKEN/IPluginCommand, PLUGIN_COMMAND_TYPE, TLogger/UConsoleLevels,
+         IAppConfig, buildHierarchy, buildEntityRegistry, IMCPCommandInput/IMCPEntity/
+         IMCPEntityRegistry/IMCPEntitySkip, createMCPServer — все задействованы), все поля
+         `IMCPEntity`/`IMCPEntityRegistry` используются в registry.ts; инъекции `config` и
+         `formatterManager` и поле `registry` не читаются в этом пункте намеренно (см. швы);
+         в tsconfig нет `noUnusedLocals`, поэтому такие «занятые под следующий пункт» поля
+         ошибкой не являются.
+
+      Швы, которые оставлены следующим пунктам (не «подгонял» и не доделывал вперёд):
+      - б3: тела `createServer()` (packages/core/src/engines/mcp/mcp.ts:133-135,
+        `createMCPServer()` вызывается без аргумента, тогда как
+        packages/core/src/engines/mcp/utils.ts:3 требует `Implementation`) и `run()`
+        (:144-152, HTTP-черновик с неопределёнными `createMcpHonoApp`/`serve`/`port`) —
+        заменяются на `serveStdio(factory)` вместе со сборкой сервер-инфо из `IAppConfig`
+        и `instructions` из `IMCPEngineOptions`. Тогда же вернётся импорт `McpServerFactory`
+        и поле фабрики: удалённый `serverFactory`/`getServerFactory()` реализовать было
+        нельзя (метода в классе никогда не было), а фабрика нужна именно транспорту.
+      - в1/в2/в3/в4/в5: реестр (`this.registry`), инъекции `config`/`formatterManager` и
+        поле `IMCPEntity.formatter` ждут генерацию MCP-данных, регистрацию поверхностей и
+        рендер через MCP-набор форматтеров; обратный маппинг «объект аргументов → args/opts»
+        заполнит `IMCPCommandInput` на стороне поверхности.
+      - При запуске MCP на packages/ai в stderr будут 3 предупреждения о пропуске
+        (board/list, board/next, skill-add без formatter) — это ожидаемое поведение по
+        решению В4/пункту г1, а не дефект.
+
+      Профиль `step`: сборку, typecheck и тесты не запускал (только по явному запросу),
+      коммитов не делал, результат остался в рабочем дереве; ветка `1.0-1`. Статус б2 →
+      done выставлен в активном packages/core/.opencode/_todo.yml через симлинк; группа
+      `б` осталась `todo` — открыты б3 и б4.
+  - ref: б3
+    status: in-progress
+    by: coder
+    at: 2026-10-16T15:32
+    text: |
+      Начат пункт б3 «Транспорт stdio через serveStdio» — единственный пункт в
+      постановке (профиль step, остальные пункты не трогаю). Объём: run() на
+      serveStdio(factory) из @modelcontextprotocol/server/stdio, фабрика McpServer
+      на соединение с замыканием на движок (его DI-зависимости), сервер-инфо
+      name/version/description из IAppConfig, instructions — из опций движка
+      (IMCPEngineOptions, передаются при создании), диагностика — только в stderr.
+      Поверхности (в*) и точка входа/bin (б4) не трогаю.
+  - ref: б3
+    status: done
+    by: coder
+    at: 2026-10-16T15:33
+    text: |
+      Пункт б3 закрыт. Движок запускается как MCP-сервер по stdio: run() отдаёт фабрику
+      в serveStdio, фабрика строит McpServer на соединение, сервер-инфо собирается из
+      IAppConfig, instructions приходят из опций движка (новый DI-токен), вся
+      диагностика — только в stderr. Поверхности (в*) и точка входа/bin (б4) не трогал.
+
+      Изменённые/новые файлы (только packages/core/src/engines/mcp/**):
+      1. packages/core/src/engines/mcp/tokens.ts — НОВЫЙ файл: MCP_ENGINE_OPTIONS_TOKEN
+         (ServiceIdentifier<IMCPEngineOptions>, Symbol('MCP_ENGINE_OPTIONS')) с JSDoc о
+         механизме: опции биндит точка входа как constant value, и контейнер отдаёт их
+         движку при создании (движок — синглтон, поэтому бинд должен быть до первого
+         разрешения ENGINE_TOKEN); дефолтный конфиг ядра о движке не знает, поэтому
+         инъекция в движке необязательная.
+      2. packages/core/src/engines/mcp/utils.ts — переписан:
+         - buildServerInfo(config: IAppConfig): Implementation — { name, version,
+           description } из конфига (простая деструктуризация без переименований);
+           instructions в info не входит (это опция движка);
+         - createMCPServer(info: Implementation, options: IMCPEngineOptions = {}):
+           McpServer — вместо async-заглушки с Promise.resolve; new McpServer(info,
+           { instructions }). Опций по умолчанию {} — все опции необязательны, а движок
+           может получить undefined, если токен не забинжен.
+      3. packages/core/src/engines/mcp/mcp.ts:
+         - импорты: serveStdio из '@modelcontextprotocol/server/stdio'; типы McpServer,
+           McpServerFactory из '@modelcontextprotocol/server';
+         - поле private readonly serverFactory: McpServerFactory = () => this.createServer()
+           (вернул фабрику, удалённую в б2 как неиспользуемую): закрывается на движок и так
+           получает его DI-зависимости; в JSDoc — что serveStdio создаёт инстанс на
+           соединение и ещё один на server/discover-пробу, которую отбрасывает при откате
+           клиента к initialize;
+         - private createServer(): McpServer вместо черновой async createServer() с вызовом
+           createMCPServer() без аргумента (шов б1/б2): createMCPServer(buildServerInfo(
+           this.config), this.options); в JSDoc зафиксировано, что сущности this.registry
+           регистрируются на этом сервере (поверхности соединения, регистрация пока не
+           написана — это в*);
+         - run(): Promise<void> вместо HTTP-черновика (createMcpHonoApp/serve/port):
+           serveStdio(this.serverFactory, { onerror: (error) => this.reportServerError(
+           error) }); handle не сохраняется — транспорт владеет соединением и закрывает себя
+           по EOF stdin, после чего процесс завершается; в JSDoc — stdin/stdout, stderr для
+           диагностики и то, что argv у IEngine.run не используется (вход команды приходит
+           по протоколу);
+         - опции движка: @inject(MCP_ENGINE_OPTIONS_TOKEN) @optional() private readonly
+           options?: IMCPEngineOptions; (optional — иначе движок нельзя создать без бинда
+           токена, которого в общем конфиге ядра нет);
+         - reportServerError(error) для out-of-band ошибок транспорта и общий
+           reportToStderr(message) ('[mcp] <текст>' в process.stderr); reportSkipped (б2)
+           переведён на тот же хелпер, чтобы канал диагностики был один.
+
+         Решение для ревью: run() объявлен без параметра argv, хотя IEngine.run(argv).
+         Для stdio аргументы процесса не являются входом (аргументы команды приходят
+         объектом по протоколу), меньшее число параметров допустимо в TS; причина описана
+         в JSDoc. Сознательно не делал: legacy/HTTP-опции serveStdio (дефолт legacy:
+         'serve' покрывает 2025-эры клиентов), capabilities в конструкторе McpServer
+         (не нужны без регистраций), свой transport (serveStdio владеет им).
+      4. packages/core/src/engines/mcp/types.ts — правка только в JSDoc IMCPEngineOptions:
+         добавлено, что опции биндятся в точке входа под MCP_ENGINE_OPTIONS_TOKEN
+         (./tokens) и приходят движку при создании.
+
+      Проверки (сборку, typecheck и тесты НЕ запускал — профиль step, явного запроса не
+      было):
+      1) npx prettier --check "packages/core/src/engines/mcp/*.ts" — «All matched files use
+         Prettier code style!» (exit 0).
+      2) API SDK 2.3.1 сверен по установленным типам/коду, а не по документации:
+         - node_modules/@modelcontextprotocol/server/dist/stdio.d.mts:61 — serveStdio(
+         factory: McpServerFactory, options?: ServeStdioOptions): StdioServerHandle;
+         onerror — «out-of-band errors (reporting only; it never alters what is written to
+         the wire)»;
+         - createMcpHandler-D4NN8WsG.d.mts:3903 — McpServerFactory = (ctx:
+         McpRequestContext) => McpServer | Server | Promise<McpServer | Server>;
+         :2837 — ServerOptions.instructions?: string;
+         - mcp-DIH4cS6P.mjs:1692-1698 — capabilities в конструкторе McpServer включают
+         request-хендлеры только при явном options.capabilities, а registerTool/
+         registerPrompt (:2151-2163, :2147-2150) вызывают set*RequestHandlers сами —
+         значит голый new McpServer(info, { instructions }) корректен и для в* не
+         потребует объявлять capabilities руками;
+         - stdio.mjs — serveStdio сам создаёт StdioServerTransport, владеет им и
+         перезаписывает wire.onclose (поэтому свой транспорт с подпиской на закрытие не
+         подходит), и подставляет onerror в отчёт о внеполосных ошибках.
+      3) Runtime-проба DI-шва (черновик tmp/optional-injection-probe.mjs, каталог tmp/
+         исключён из git): node tmp/optional-injection-probe.mjs → «unbound token ->
+         undefined» (нет бинда + @optional() → свойство остаётся undefined, исключения
+         нет) и «bound token -> { instructions: 'hello' }» (constant value биндится и
+         инжектится при создании). Декораторы применялись вручную в том порядке, в каком
+         их вызывает TS (@optional() первым, затем @inject()), на inversify 8.2.3 из
+         node_modules.
+      4) Резолв подпути: node --input-type=module -e "await import(
+         '@modelcontextprotocol/server/stdio')" → экспорты StdioServerTransport, serveStdio;
+         '@modelcontextprotocol/server' → McpServer — функция. В package.json SDK есть
+         exports './stdio' с "types": "./dist/stdio.d.mts" (покрывает и TS с
+         moduleResolution bundler), а rollup EXTERNAL собирается из dependencies пакета,
+         поэтому подпуть остаётся внешним и в сборке б4.
+      5) grep по модулю движка: createMcpHonoApp, createMcpHandler, getServerFactory,
+         'node:http', "from 'http'", process.stdout — 0 совпадений; console.log остался
+         только в JSDoc как объяснение, почему логгер нельзя использовать. grep по
+         репозиторию: внешних потребителей MCPEngine, createMCPServer, buildServerInfo и
+         MCP_ENGINE_OPTIONS_TOKEN нет (реэкспорт — б4).
+      6) YAML-валидность активных _todo.yml и _reports.yml (js-yaml) — обе разбираются;
+         счётчики items/reports сходятся.
+
+      Швы, оставленные следующим пунктам:
+      - б4: точку входа надо забиндить MCP_ENGINE_OPTIONS_TOKEN (импорт из модуля движка)
+        до bootstrapApp, иначе options === undefined и instructions не попадут в сервер;
+        реэкспорт движка/типов/токена из public-api @clapp/core — за б4.
+      - в*: this.registry, инъекции config/formatterManager и IMCPEntity.formatter попрежнему
+        не читаются — данные MCP и регистрация поверхностей впереди; точка вставки
+        регистрации — createServer() в mcp.ts (сервер создаётся на соединение, поэтому
+        регистрация обязана быть дешёвой и детерминированной).
+      - д1/запуск: модуль движка сейчас нельзя загрузить в рантайме — packages/core/src/
+        constants/tokens.ts:7 импортирует отсутствующий ../engines/engine-facade.base
+        (незавершённая задача core-cli-facade), а mcp.ts тянет ../../public-api →
+        ./constants/tokens. Это предсуществующий шов соседней задачи, вне рамок б3,
+        поэтому run() проверен только по API SDK, без живого запуска. Плюс до б4 у движка
+        нет точки входа/bin, а до в* — ни одной зарегистрированной поверхности.
+
+      Профиль step: коммитов не делал, ветку не переключал, результат остался в рабочем
+      дереве (ветка 1.0-1). Статус б3 → done выставлен в активном
+      packages/core/.opencode/_todo.yml через симлинк; группа `б` осталась `todo` —
+      открыт б4.
+  - ref: б3
+    status: done
+    by: coder
+    at: 2026-10-16T15:33
+    text: |
+      Редакторская поправка к предыдущей записи (append-only, статус не менялся — остаётся
+      done): в абзаце «Швы» строка «… IMCPEntity.formatter попрежнему не читаются …»
+      читается как «… по-прежнему не читаются …». Иных правок, проверок или смен статуса
+      после того отчёта не было: тот же набор файлов, тот же набор статусов (б3=done,
+      б4=todo, остальные не тронуты).
+  - ref: б3
+    status: todo
+    by: planner
+    at: 2026-10-16T15:43
+    text: |
+      Возврат б3 в `todo` по указанию пользователя: опции движка не нужны — «убери нахрен
+      MCP_ENGINE_OPTIONS… он же не нужен на данный момент, и скорее всего не понадобится…
+      а когда понадобится тогда и будем решать». Из объёма б3 исключены `IMCPEngineOptions`
+      и `MCP_ENGINE_OPTIONS_TOKEN` (в т.ч. `engines/mcp/tokens.ts`, `@optional()`-инъекция
+      опций и передача `instructions` в `McpServer`) — движок получает только `IAppConfig`;
+      пункт переименован в «Транспорт stdio через serveStdio (без опций движка)», в actions
+      добавлено действие на удаление опций.
+
+      Приведены в соответствие документы задачи (без правок кода): `_task.md` — контекст
+      («Опции движка не вводим», 2026-10-16) и требования 5, 10; `_concept.md` — §5 (риск про
+      serverInfo), §6.1 (уточнение «Опции движка не вводим»), §6.3 (транспорт и конфигурация);
+      `_todo.yml` — действия б1, б3, б4. Код движка пока не тронут: удаление
+      `IMCPEngineOptions`/`MCP_ENGINE_OPTIONS_TOKEN` выполняет coder по возобновлённому б3.
+      Группа `б` остаётся `todo` (открыты б3, б4).
+  - ref: б3
+    status: in-progress
+    by: coder
+    at: 2026-10-16T16:05
+    text: |
+      Возобновление б3 после правки планировщика: удаляю опции движка из кода по решению
+      пользователя (2026-10-16) — `IMCPEngineOptions`, `MCP_ENGINE_OPTIONS_TOKEN`
+      (файл engines/mcp/tokens.ts), `@optional()`-инъекция опций в `mcp.ts` и передача
+      `instructions` в `new McpServer(...)`. Транспорт stdio (serveStdio + фабрика на
+      соединение) не переписываю — правка узкая, поверх уже сделанного б3.
+
+      План проверок в объёме пункта (профиль step, без build/typecheck/тестов и без
+      коммитов): grep по packages/core/src и packages/core/.opencode на
+      MCP_ENGINE_OPTIONS_TOKEN/IMCPEngineOptions/instructions; prettier --check по
+      packages/core/src/engines/mcp/*.ts; валидность YAML активных _todo.yml/_reports.yml.
+  - ref: б3
+    status: done
+    by: coder
+    at: 2026-10-16T16:12
+    text: |
+      б3 (возобновлённый) закрыт: опции движка удалены из кода, транспорт stdio оставлен
+      как есть (serveStdio + фабрика на соединение — не переписывал).
+
+      Что сделано:
+      1. packages/core/src/engines/mcp/tokens.ts — файл удалён целиком
+         (`MCP_ENGINE_OPTIONS_TOKEN` больше не нужен: движок опций не принимает, внешних
+         потребителей у токена не было — grep по репозиторию пуст). Файл был untracked,
+         поэтому git rm не потребовался.
+      2. packages/core/src/engines/mcp/types.ts — удалён интерфейс `IMCPEngineOptions`
+         (импорт `./tokens` из модуля ушёл вместе с ним). Остальной контракт модуля
+         (IMCPEntity, IMCPEntitySkip, IMCPEntityRegistry, IMCPCommandInput) не тронут.
+      3. packages/core/src/engines/mcp/mcp.ts:
+         - убраны импорт `MCP_ENGINE_OPTIONS_TOKEN` (./tokens) и тип `IMCPEngineOptions`;
+           из импорта inversify ушёл `optional` (`inject`/`injectable` остались — используются);
+         - убрано поле `@inject(MCP_ENGINE_OPTIONS_TOKEN) @optional() private readonly
+           options?: IMCPEngineOptions` вместе с JSDoc об опциях;
+         - `createServer()` → `createMCPServer(buildServerInfo(this.config))` без передачи
+           опций; JSDoc класса и метода приведены в соответствие («сервер-инфо из IAppConfig;
+           у движка нет собственных опций»).
+      4. packages/core/src/engines/mcp/utils.ts:
+         - `createMCPServer(info: Implementation): McpServer` — без параметра options,
+           тело `return new McpServer(info)` (без `instructions`); подпись сверена с SDK:
+           `McpServer.constructor(serverInfo: Implementation, options?: McpServerOptions)`
+           в node_modules/@modelcontextprotocol/server/dist/createMcpHandler-D4NN8WssG.d.mts,
+           поэтому вызов с одним аргументом корректен;
+         - JSDoc обоих хелперов переписан без упоминаний `instructions`/опций.
+
+      Правка узкая, поверх уже сделанного транспорта: `serveStdio(this.serverFactory,
+      { onerror: (error) => this.reportServerError(error) })`, фабрика
+      `McpServerFactory` на соединение и `createServer()` как точка вставки поверхностей
+      (в*) не менялись; диагностика — только `process.stderr` (reportToStderr), stdout
+      движок не пишет.
+
+      Чем убедился (без build/typecheck/тестов — профиль step):
+      - grep -rn 'MCP_ENGINE_OPTIONS_TOKEN\|IMCPEngineOptions\|instructions'
+        packages/core/src → 0 совпадений (до правки: tokens.ts, mcp.ts, types.ts, utils.ts);
+      - grep по packages/core/.opencode: совпадения остались только в документах задачи
+        (_concept.md — 4, _task.md — 3, _todo.yml — 2, все — записи о решении «опции не
+        вводим») и в _reports.yml (29 — история, append-only); код движка чист;
+      - grep 'mcp/tokens|from ''./tokens''' по packages/core/src и packages/ai/src → 0
+        (висячих импортов удалённого файла нет); grep optional по engines/mcp → 0;
+      - grep 'engines/mcp' по packages/*/src, packages/*/plugins, src → 0: внешних
+        потребителей модуля нет, реэкспорт из public-api по-прежнему за б4 (удаление
+        tokens.ts ничего наружу не ломает);
+      - npx prettier --check packages/core/src/engines/mcp/*.ts → «All matched files use
+        Prettier code style!» (prettier парсит TS, то есть синтаксис файлов валиден);
+      - YAML активных _todo.yml и _reports.yml разобран js-yaml: items=15, reports=22,
+        ошибок нет.
+
+      Состояние задачи: б3 → done в активном packages/core/.opencode/_todo.yml (через
+      симлинк, он цел); группа `б` остаётся `todo` — открыт б4.
+
+      Швы для следующих пунктов:
+      - б4: точка входа/bin для MCP-режима (движок выбирается через bootstrapApp/
+        ENGINE_TOKEN), реэкспорт движка и его типов из public-api @clapp/core (+ проверка,
+        что rollup-сборка включает движок), убрать неиспользуемый импорт createServer в
+        зависимостях/заготовке. Биндить опции больше не нужно — этой шва у б4 нет
+        (токен удалён); сервер-инфо берётся из IAppConfig.
+      - в*: `createServer()` — точка вставки регистрации поверхностей; this.registry,
+        инъекции config/formatterManager и IMCPEntity.formatter пока не читаются.
+      - д1/запуск: живой запуск по-прежнему упирается в предсуществующий шов соседней
+        задачи core-cli-facade (packages/core/src/constants/tokens.ts:7 импортирует
+        отсутствующий ../engines/engine-facade.base), а также в отсутствие bin до б4.
+
+      Профиль step: коммитов не делал, ветку не переключал; результат остался в рабочем
+      дереве (ветка 1.0-1). Затронуто: mcp.ts, utils.ts, types.ts (изменены) и удалён
+      untracked tokens.ts.
+  - ref: б3
+    status: done
+    by: coder
+    at: 2026-10-16T16:14
+    text: |
+      Редакторская поправка к предыдущей записи (append-only, смены статуса нет — б3 уже
+      done): путь к типам SDK в записи от 2026-10-16T16:12 указан с опечаткой —
+      «createMcpHandler-D4NN8WssG.d.mts», верно
+      «node_modules/@modelcontextprotocol/server/dist/createMcpHandler-D4NN8WsG.d.mts»
+      (строка 3266, `constructor(serverInfo: Implementation, options?: McpServerOptions)`).
+      Код и статусы после того отчёта не менялись: б3=done, б4=todo, группа `б`=todo.
+  - ref: б4
+    status: in-progress
+    by: coder
+    at: 2026-10-16T15:51
+    text: |
+      Начат пункт б4 «Точка входа, публичный API и чистка заготовки» — единственный пункт
+      в постановке (профиль step, остальные пункты не трогаю). Решение пользователя,
+      переданное в постановке: bin MCP-режима размещается в ядре `@clapp/core` (не в
+      `@clapp/ai`). Объём:
+      1) реэкспорт `MCPEngine` и публичных типов модуля движка из
+         `packages/core/src/public-api.ts`;
+      2) отдельный bin `packages/core/src/bin/clapp-mcp.ts` (тонкая точка входа:
+         reflect-metadata, Container из inversify, `run(MCPEngine, container, options)` из
+         bootstrap; appRoot = process.cwd(), конфиг — `APP_CONFIG_PATH_DEFAULT` от appRoot;
+         переопределение минимальное; в stdout ничего не пишем);
+      3) второй JS-entry в packages/core/rollup.config.js (input bin, output
+         dist/bin/clapp-mcp.js, тот же EXTERNAL, format esm, shebang) + `bin` в
+         packages/core/package.json и chmod +x в scripts.build;
+      4) чистка зависимостей и заготовки (createServer из node:http и stdout в модуле
+         движка — grep).
+      Сборку/typecheck/тесты не запускаю (профиль step, явного запроса не было),
+      коммитов не делаю.
+      Проверки в объёме пункта без сборки: статический анализ достижимости импортов
+      (в т.ч. разбор семантики EXTERNAL/external в rollup и @rollup/plugin-node-resolve),
+      grep по public-api/bin/модулю движка, `npx prettier --check` по затронутым файлам,
+      разбор YAML активных _todo.yml/_reports.yml через js-yaml.
+  - ref: б4
+    status: done
+    by: coder
+    at: 2026-10-16T16:12
+    text: |
+      Пункт б4 закрыт. Решение пользователя из постановки соблюдено: bin MCP-режима лежит в
+      ядре `@clapp/core` (не в `@clapp/ai`). Движок реэкспортируется из публичного API,
+      у ядра есть отдельный bin-бандл, зависимости и заготовка проверены. Сборку/typecheck/
+      тесты не запускал (профиль step), коммитов не делал.
+
+      Изменённые/новые файлы:
+      1. packages/core/src/public-api.ts (изменён):
+         - `export { MCPEngine } from './engines/mcp/mcp';` — сразу после `CliEngine`
+           (строка 10);
+         - `export type { IMCPCommandInput, IMCPEntity, IMCPEntityRegistry, IMCPEntitySkip }
+           from './engines/mcp/types';` — публичные типы модуля движка (строка 14);
+         - `export * from './constants/tokens';` перенесён в начало, сразу после
+           `import 'reflect-metadata'`, с комментарием-обоснованием (см. «Найденный дефект»
+           ниже). Попутно убрал предсуществующий пробел в `IAppConfig ,` (prettier).
+      2. packages/core/src/bin/clapp-mcp.ts (НОВЫЙ) — тонкая точка входа MCP-режима:
+         shebang `#!/usr/bin/env node`, `import 'reflect-metadata'`, `new Container()` из
+         inversify, `await run(MCPEngine, container, { appRoot, configPath })` из
+         `./bootstrap` (сигнатура `run(engineClass, container, options?)`,
+         bootstrap.ts:63). Движок выбирается здесь, в точке входа, ровно как в CLI-точке
+         входа выбирается `CliEngine`; подкоманду `mcp` не делаем. В stdout bin не пишет
+         ничего (канал протокола), диагностика — только через движок в stderr.
+      3. packages/core/rollup.config.js (изменён):
+         - второй JS-entry: `input: 'src/bin/clapp-mcp.ts'`,
+           `output: { file: 'dist/bin/clapp-mcp.js', format: 'esm' }`, тот же `external`,
+           те же JS-плагины (вынесены в `createJsPlugins()`, чтобы конфиги не разъезжались);
+           `format: 'esm'` обязателен — в bin есть top-level await;
+         - `external` стал функцией `isExternal`: имя внешнего пакета покрывает свои подпути
+           (`@modelcontextprotocol/server/stdio` → внешний), а builtin — свою `node:`-форму
+           (`node:path` → внешний). Тот же матчер применён и в dts-конфиге.
+      4. packages/core/package.json (изменён): `"bin": { "clapp-mcp":
+         "./dist/bin/clapp-mcp.js" }` (в `files` уже есть `dist`), в `scripts.build` добавлен
+         `chmod +x dist/bin/clapp-mcp.js` после `rollup -c` (по образцу packages/ai).
+         Зависимости не менялись: `@modelcontextprotocol/server` реально используется движком
+         (mcp.ts:1-2, utils.ts:1) — оставлен, ничего не добавлял и не удалял.
+
+      Найденный и исправленный дефект (предсуществующий, вне объёма пункта, но он делает
+      нерабочей саму точку входа): публичный API не загружался из-за цикла
+      engines → `../../public-api` → `./constants/tokens`: декораторы `@inject` в классах
+      движков читают токены в temporal dead zone.
+      Улика (рантайм-проба `tmp/mcp-entry-load-probe.ts`, tsx, до правки):
+      `ReferenceError: Cannot access 'CLAPP_LOGGER_TOKEN' before initialization
+      at packages/core/src/engines/clapp/clapp.ts:26:11`. Тот же порядок даёт и бандл:
+      rollup собирает модули DFS post-order по `module.dependencies`, а порядок зависимостей =
+      порядок import/export-объявлений (node_modules/rollup/dist/shared/rollup.js:21987-22032
+      `analyseModuleExecution` + :23293 наполнение `module.dependencies`), поэтому
+      `constants/tokens` (экспорт в конце public-api) попадал в вывод после тел классов
+      `CliEngine`/`MCPEngine` — то есть бандл падал бы при загрузке.
+      Правка: `export * from './constants/tokens'` переставлен в начало public-api (файл в
+      разрешённых границах; `packages/core/src/engines/clapp/**` не тронут, как и просили).
+      После правки та же проба TDZ больше не воспроизводит, а упирается в следующий,
+      независимый сбой (см. «Что осталось / риски», п. 2).
+
+      Чем убедился (без сборки, typecheck и тестов):
+      1) Достижимость движка в сборке (статически): вход rollup — `src/public-api.ts`
+         (не менялся), из него `export { MCPEngine } from './engines/mcp/mcp'` — единственный
+         экспортируемый класс модуля; цепочка импортов модуля целиком резолвится:
+         `./bootstrap`, `./constants/paths`, `./engines/mcp/mcp` (bin) и внутри движка
+         `./registry`, `./types`, `./utils`, `../../public-api`, `../../types`, `../../utils`,
+         `@clapp/common`, `@orion76/node-plugin`, `@orion76/logger`, `inversify` — все пути
+         существуют (`src/utils/index.ts` реэкспортирует `buildHierarchy` из command.ts:101).
+         Динамических импортов, из-за которых движок мог бы «отвалиться» от бандла, в модуле нет.
+      2) rollup-конфиг загружен и проверен без сборки: `node tmp/rollup-config-probe.mjs`
+         (импортирует `packages/core/rollup.config.js` и печатает структуру) →
+         entry `src/public-api.ts` → `dist/clapp-core.js` (esm), entry `src/bin/clapp-mcp.ts` →
+         `dist/bin/clapp-mcp.js` (esm), entry `src/public-api.ts` → `dist/clapp-core.d.ts`;
+         `external('@modelcontextprotocol/server')` = true, `…/server/stdio` = true,
+         `@clapp/common` = true, `@orion76/node-plugin` = true, `tsx/esm/api` = true,
+         `commander` = true, `node:path` = true, `./engines/mcp/mcp` = false, `../bootstrap` = false;
+         плагины bin-энтри — node-resolve, typescript. Дополнительно сверил по исходникам
+         rollup: shebang входного модуля переносится в начало вывода
+         (`facadeModule.info.isEntry` → `magicString.prepend('#!…')`,
+         node_modules/rollup/dist/shared/rollup.js:20549-20551), а `external` в виде массива
+         матчится только точно (`getIdMatcher`, :23808-23829) — отсюда и необходимость
+         подпутей в матчере: `@rollup/plugin-node-resolve` с `resolveOnly: []` разрешал бы
+         `@modelcontextprotocol/server/stdio` из `node_modules` и втянул бы SDK в бандл.
+      3) grep по модулю движка (`packages/core/src/engines/mcp/`): `node:http`, `from 'http'`,
+         `process.stdout`, `createMcpHandler`, `getServerFactory` — 0 совпадений;
+         `process.stderr` — только в `reportToStderr` (mcp.ts:198), то есть диагностика идёт
+         в stderr, как требует пункт. Единственные совпадения по `createServer` — приватный
+         метод самого движка (mcp.ts:60,161), импорта из `node:http` нет.
+      4) grep по bin: `reflect-metadata`, `Container` из inversify, `run` из `../bootstrap`,
+         `MCPEngine` из `../engines/mcp/mcp`, `APP_CONFIG_PATH_DEFAULT` — всё на месте;
+         записей в stdout (`process.stdout`, `console.log`) в bin нет; shebang — первая строка.
+      5) Внешних потребителей движка по-прежнему нет (grep `engines/mcp` по packages/*/src,
+         packages/*/plugins — 0), то есть реэкспорт ничего не ломает; `packages/ai` не тронут.
+      6) `npx prettier --check packages/core/src/public-api.ts
+         packages/core/src/bin/clapp-mcp.ts packages/core/package.json` →
+         «All matched files use Prettier code style!». По `rollup.config.js` prettier падает
+         на разборе `import pkg from './package.json' with { type: "json" }` — это
+         предсуществующее (тот же SyntaxError на версии файла из HEAD: `git show
+         HEAD:packages/core/rollup.config.js | npx prettier --check`), не связано с правкой;
+         синтаксис самого файла проверил загрузкой конфига (п. 2).
+      7) YAML активных `packages/core/.opencode/_todo.yml` и
+         `tasks/core-mcp-engine/_reports.yml` разобран js-yaml: items=15, groups=5,
+         reports=27, ошибок нет; `б4` → done, группа `б` → done, остальные пункты не тронуты.
+
+      Что осталось / риски (не в объёме б4):
+      1) в*/д1: регистрация поверхностей MCP (tools/resources/prompts), реестр-инъекции,
+         MCP-форматтеры и живая проверка по stdio — по-прежнему впереди; `createServer()`
+         (mcp.ts:161) — точка вставки регистрации.
+      2) Живой запуск упирается в предсуществующий сбой окружения, не связанный с правкой:
+         при загрузке через tsx с `paths` из корневого tsconfig подтягивается TS-исходник
+         соседнего репозитория `@orion76/node-plugin`, и он падает на декораторах
+         (`TypeError: Cannot read properties of undefined (reading 'constructor')` в
+         `@inversifyjs/core/.../injectBase.ts`). Воспроизводится независимо от правки:
+         `node --import tsx -e "await import('@orion76/node-plugin')"` — тот же стек в
+         `/home/pasha/my/@orion76/projects/node-plugin/src/plugin-loader/plugin-loader.ts:42`.
+         То есть для д1 нужен рантайм, который берёт `@orion76/*` из собранного `node_modules`
+         (или `npm run il`), а не TS-исходник по paths; правки в `/home/pasha/my/@orion76`
+         вне рамок задачи.
+      3) Сборка ядра после этого пункта не запускалась ни разу с коммита 85bf38e (dist в
+         packages/core — от прежней архитектуры, 2026-10-15), поэтому она остаётся главной
+         непроверенной операцией; проверка бандла (в т.ч. что `MCPEngine` в него попал и
+         shebang/bin на месте) — первый шаг при явном запросе сборки.
+
+      Черновики в `tmp/` (в git не попадают): `mcp-entry-load-probe.ts`,
+      `tsconfig.probe.json`, `rollup-config-probe.mjs`, `rollup.prettier.js`,
+      `rollup.head.js`. Коммитов не делал, ветка `1.0-1`; изменённые/новые файлы пункта —
+      public-api.ts, bin/clapp-mcp.ts, rollup.config.js, package.json.
+  - ref: б
+    status: done
+    by: coder
+    at: 2026-10-16T16:12
+    text: |
+      Группа `б` «Движок и запуск по stdio» закрыта: все её пункты закрыты — б1 (engine убран
+      из IAppConfig и общего дефолта ядра), б2 (рабочий MCPEngine с реестром сущностей и
+      собственным конвейером, без commander/HTTP/stdout), б3 (транспорт stdio через serveStdio
+      без опций движка), б4 (bin, реэкспорт из публичного API, entry в rollup, чистка).
+      Открытыми в задаче остаются в* (поверхности MCP и MCP-форматтеры), г2 (prompt-команда
+      для проверки) и д1 (живая проверка по stdio); г1 отложен (deferred).
+      Сборку/typecheck/тесты не запускал (профиль step) — они выполняются только по явному
+      запросу пользователя; главный риск для запуска (TS-исходник @orion76 по paths в tsx)
+      и предсуществующий TDZ-дефект публичного API (исправлен в б4) описаны в отчёте б4.
+  - ref: в1
+    status: in-progress
+    by: coder
+    at: 2026-10-16T17:05
+    text: |
+      Начат пункт в1 «Конвенции генерации данных сущностей из определения команды» (профиль
+      step: только этот пункт, сборка/typecheck/тесты не запускаются, коммитов нет).
+      План: вынести генерацию пути/имени сущности в один модуль (разделитель `board/list` —
+      одна правка), добавить чистые генераторы данных по § 6.2 концепции — title ← label,
+      description ← config.description ?? label, JSON Schema аргументов/опций с подачей в SDK
+      через fromJsonSchema (без zod), annotations по виду команды. Регистрация поверхностей
+      (registerTool/registerResource/registerPrompt) не делается — это в2/в3/в4.
+  - ref: в1
+    status: done
+    by: coder
+    at: 2026-10-16T17:25
+    text: |
+      Пункт в1 закрыт. Генераторы данных сущностей сделаны чистыми функциями без регистрации
+      поверхностей в SDK; сборку/typecheck/тесты не запускал (профиль step), коммитов не делал.
+
+      НОВЫЕ ФАЙЛЫ (папка движка packages/core/src/engines/mcp/)
+      1) entity-path.ts — единственное место, где живёт разделитель путей:
+         `ENTITY_PATH_SEPARATOR = '/'` и `buildEntityPath(parentPath, id)` (корень → свой id,
+         вложенная команда → `board/list`). Регистрации/URI здесь нет — так требование «разделитель
+         меняется одной правкой» выполнено: имя сущности строится только этой функцией.
+      2) entity-schema.ts — маппинг ICommandConfig → JSON Schema и подача в SDK:
+         - `buildArgumentsJsonSchema(config): JsonSchemaType` (чистый JSON Schema без SDK-валидации):
+           `type: 'object'`, `properties` — позиционные аргументы по имени, затем опции; позиционный
+           аргумент → `{ type: 'string', description[, enum ← choices] }`, вариативный →
+           `{ type: 'array', items: { type: 'string'[, enum ← choices] }, description }`; опция →
+           `{ type: option.type ?? 'string', description[, enum ← choices][, default ← defaultValue] }`;
+           `required` — из `required` аргументов и опций (при пустом списке ключ не выводится);
+         - `buildArgumentsStandardSchema(config): StandardSchemaWithJSON` — `fromJsonSchema(...)`
+           из `@modelcontextprotocol/server` (default-валидатор SDK); zod в ядре не появляется.
+      3) entity-annotations.ts — `buildEntityAnnotations(kind): ToolAnnotations | undefined`:
+         resource → `{ readOnlyHint: true }`, tool → `{ readOnlyHint: false }`, prompt → `undefined`
+         (поле не выводится), switch по трём видам, тип из SDK.
+      4) entity-data.ts — `buildEntityData(entity: IMCPEntity): IMCPEntityData` — сборка данных из
+         определения: `name ← entity.path` (путь иерархии), `title ← label`,
+         `description ← config.description ?? label`, `argumentsSchema` (п. 2), `annotations` (п. 3).
+         Функция чистая: реестр не строит и ничего не регистрирует.
+
+      ИЗМЕНЁННЫЕ ФАЙЛЫ
+      - registry.ts: локальная константа `PATH_SEPARATOR` и сборка пути удалены, путь берётся из
+        `buildEntityPath(prefix, id)` (entity-path.ts:4,32); поведение не менялось.
+      - types.ts: добавлен `IMCPEntityData` (name/title/description/argumentsSchema/annotations)
+        с JSDoc о конвенциях § 6.2 и о том, как поверхность маппит поля на свой registration-shape
+        (argumentsSchema → inputSchema тула / argsSchema промпта).
+
+      ЧЕМ УБЕДИЛСЯ (целевая проба, сборка/typecheck не запускались)
+      - `node --import tsx tmp/mcp-entity-data-probe.ts` (черновик в tmp/, в git не попадает) —
+        запускается, известный сбой tsx с TS-исходником @orion76 не воспроизвёлся: скрипт
+        импортирует только новые генераторы и SDK, @orion76 по paths не подтягивается. Вывод:
+        * path: корень → `info`, вложенный → `board/list`;
+        * JSON Schema: аргументы как строки, вариативный — массив с enum на items, опции с
+          type/description/enum/default, опция без типа → строка, `required: ["name"]`; пустой
+          config → `{"type":"object","properties":{}}` (без ключа required);
+        * `~standard.jsonSchema.input()` возвращает ровно нашу схему, а `~standard.validate`
+          работает от default-валидатора SDK: `{name:'demo',force:true}` → `{value:{name:'demo',
+          force:true}}`, `{}` → issue `data must have required property 'name'`,
+          `{name:'demo',limit:'many'}` → issue `data/limit must be number` (то есть схема реально
+          валидирует, а не только рекламируется);
+        * annotations: resource → `{"readOnlyHint":true}`, tool → `{"readOnlyHint":false}`,
+          prompt → отсутствует; description-fallback: пустой config → описание = label.
+      - `npx prettier --check` по всем шести файлам (entity-path/schema/annotations/data,
+        registry, types) → «All matched files use Prettier code style!».
+      - Статически (grep): `ENTITY_PATH_SEPARATOR` встречается только в entity-path.ts, дублей
+        сборки пути в модуле нет; `entity-path`/`buildEntityPath` используются в registry.ts.
+      - YAML: активный `_todo.yml` и `_reports.yml` разобраны js-yaml (items=15, groups=5,
+        reports=29) — ошибок нет; `в1` → done, группа `в` осталась `todo` (открыты в2–в5).
+
+      РЕШЕНИЯ ДЛЯ РЕВЬЮ (отклонения/выборы в объёме пункта)
+      1) Аннотации ресурса: по таблице § 6.2 `resource → readOnlyHint: true`, но у MCP-ресурса
+         аннотации другой формы (audience/priority/lastModified), `readOnlyHint` есть только у
+         ToolAnnotations. Генератор выдаёт значение по пункту (тип — ToolAnnotations), а как его
+         донести до клиента, решает поверхность ресурса в в3: передать его в registerResource
+         нельзя без нарушения типа. Это зафиксировано в JSDoc entity-annotations.ts.
+      2) Опция без `type` → `string`: так же, как её собирает CLI (`buildCommandOption` добавляет
+         имя значения для всего, кроме `type === 'boolean'`), то есть опция принимает значение.
+      3) `enum` у вариативного аргумента отнесён к `items`, а не к самому массиву: иначе схема
+         требовала бы строку, а не список строк.
+      4) `defaultValue` проверяется на `!== undefined`, а не на truthiness (в отличие от
+         `buildCommandOption:65`): `false`/`0` — осмысленные значения по умолчанию.
+         Расхождение с CLI-сборкой не правил — это код CLI-движка, вне рамок пункта.
+      5) Обязательный вариативный аргумент попадает в `required` без `minItems`: таблица § 6.2
+         длину списка не оговаривает; при необходимости — решение в2 (обратный маппинг в argv).
+      6) В схему не добавлен `additionalProperties: false` и не выставлен `title` схемы: таблица
+         § 6.2 их не упоминает; если в2 понадобится — правка одной строки.
+
+      ЧТО ОСТАЛОСЬ НА в2–в5
+      - в2: `registerTool` для kind `tool` — `inputSchema` из `buildArgumentsStandardSchema`
+        (или `argumentsSchema` из `IMCPEntityData`), `annotations` из генератора, обратный маппинг
+        объекта аргументов в `{args, opts}` конвейера, результат `content`/`isError`.
+      - в3: URI `clapp://<путь>` / `ResourceTemplate clapp://<путь>{?args}` и `mimeType text/plain`
+        — путь уже готов в `entity.path`; добавить сюда же схему/URI генератор при необходимости.
+      - в4: `registerPrompt` с `argsSchema` (готов из entity-schema.ts) и одним user-сообщением.
+      - в5: отдельный formatter PluginManager для MCP (набор плагинов, новые паттерны/токен).
+      - Генератор пока никем не вызывается: точка вставки — `createServer()` в mcp.ts:161 (в2–в4),
+        поэтому в1 не меняет поведение движка и не требует сборки.
+  - ref: в2
+    status: in-progress
+    by: coder
+    at: 2026-10-16T16:22
+    text: |
+      Начаты пункты в2, в3, в4 (профиль step: только эти три пункта, сборка/typecheck/тесты не
+      запускаются, коммитов нет). План: три модуля-поверхности (`register-tools.ts`,
+      `register-resources.ts`, `register-prompts.ts`) с чистыми функциями регистрации на
+      `McpServer`, общий обратный маппинг «объект аргументов MCP → {args, opts} конвейера»
+      (`entity-input.ts`), построение URI/шаблона ресурса (`resource-uri.ts`) и шов резолва
+      MCP-форматтера (`IMCPFormatterResolver` + временный недоступный резолвер + DI-токен), к
+      которому `в5` подключает менеджер заменой провайдера. Точка вставки регистраций —
+      `createServer()` в mcp.ts, как и было заложено в б2/в1.
+  - ref: в3
+    status: in-progress
+    by: coder
+    at: 2026-10-16T16:22
+    text: |
+      Пункт в3 начат вместе с в2/в4 (профиль step, один проход правок). План: статический
+      URI `clapp://<путь>` при отсутствии аргументов/опций, `ResourceTemplate` с шаблоном
+      `clapp://<путь>{?arg1,arg2}` при их наличии, `read` → `contents` с `mimeType text/plain`
+      и текстом MCP-форматтера; имя/title/описание — из `buildEntityData` (в1). Аннотации
+      ресурса — по замечанию в1: у MCP-ресурса своя форма (`audience`/`priority`/`lastModified`),
+      решение по маппингу `readOnlyHint` фиксируется в JSDoc модуля ресурсов.
+  - ref: в4
+    status: in-progress
+    by: coder
+    at: 2026-10-16T16:22
+    text: |
+      Пункт в4 начат вместе с в2/в3 (профиль step, один проход правок). План: `registerPrompt`
+      для команд `kind: "prompt"`, `argsSchema` из `config.arguments`/`config.options` (готов в
+      entity-schema.ts через `buildArgumentsStandardSchema`), `get` → одно `user`-сообщение с
+      текстом = вывод MCP-форматтера (сборку выполняет движок, команда отдаёт `ICommandResult`).
+  - ref: в2
+    status: done
+    by: coder
+    at: 2026-10-16T16:45
+    text: |
+      Пункт в2 «Поверхность tools» закрыт. Команды `kind: "tool"` регистрируются на `McpServer`
+      соединения; вызов идёт через конвейер движка; успех → `content: [{ type: "text", text }]`,
+      `success: false`/исключение → `isError`; `structuredContent`/`outputSchema` не отдаются.
+      Сборку/typecheck/тесты не запускал (профиль step), коммитов не делал.
+
+      НОВЫЕ ФАЙЛЫ (packages/core/src/engines/mcp/)
+      - register-tools.ts — `registerTools(server, entities, invoker)`: для каждой сущности
+        `server.registerTool(name, { title, description, inputSchema, annotations }, cb)`; данные
+        берутся из `buildEntityData` (в1: имя ← путь, title ← label, description ←
+        config.description ?? label, inputSchema ← buildArgumentsStandardSchema, annotations ←
+        buildEntityAnnotations). Callback вызывает `invoker.invokeCommand(entity,
+        buildCommandInput(entity, args))` и возвращает `{ content: [{ type: 'text', text }] }`;
+        ошибка (исключение конвейера, отсутствующий MCP-форматтер, `success: false`) →
+        `{ content: [{ type: 'text', text: причина }], isError: true }`. Исключение ловится
+        явно, хотя SDK и сам превратил бы его в `isError`: так текст и форма отказа решаются в
+        одном месте поверхности. Соединение не падает.
+      - entity-input.ts — `buildCommandInput(entity, input)`: единственная точка обратного
+        маппинга «объект аргументов MCP → { args, opts } конвейера». `args` — по порядку
+        `config.arguments`; пропущенный клиентом аргумент сохраняет позицию со значением
+        `undefined` (как CLI для необязательного аргумента; тип `string[]` — как у
+        `ICommandExecArguments`), вариативный раскрывается по позициям (как в argv CLI); `opts` —
+        только присланные опции (как `Command.opts()`), поэтому собственный default команды
+        продолжает работать. Значения подаются в объявленном типе: у tool/prompt объект уже
+        провалидирован схемой, а строку из URI-шаблона ресурса декодирует этот модуль
+        (`boolean`: `true`/`false`, `number`: непустое число; иначе — ошибка с именем опции).
+
+      ИЗМЕНЁННЫЕ ФАЙЛЫ
+      - mcp.ts: класс `implements IEngine, IMCPCommandInvoker`; `createServer()` дополнительно
+        регистрирует все три поверхности на построенном сервере (`registerTools`/`registerResources`
+        /`registerPrompts` с `this` как invoker'ом); добавлен `invokeCommand` (конвейер
+        `executeCommand` + рендер) и приватный `renderResult` (шов форматтера); `reportServerError`
+        использует общий `toErrorMessage`.
+      - types.ts: `IMCPCommandInvoker` (что поверхность просит у движка) и `IMCPFormatterResolver`
+        (шов резолва форматтера) + JSDoc о том, что набор форматтеров MCP — отдельный и фолбэка
+        на CLI-форматтеры нет.
+      - constants/tokens.ts: `MCP_FORMATTER_RESOLVER_TOKEN` (провайдер шва).
+      - public-api.ts: экспорт типов `IMCPCommandInvoker`, `IMCPFormatterResolver`.
+      - error-message.ts (новый): `toErrorMessage(error)` — общее описание причины.
+
+      ЧЕМ УБЕДИЛСЯ (целевая проба, сборка/typecheck/тесты не запускались)
+      - `npx tsx --tsconfig tmp/tsconfig.mcp-probe.json tmp/mcp-surfaces-probe.ts` — 38 секций
+        вывода, exit 0 (черновики в `tmp/`, в git не попадают: `mcp-surfaces-probe.ts`,
+        `tsconfig.mcp-probe.json`, `decorator-probe.ts`). Проба регистрирует поверхности на
+        настоящем `McpServer` и обращается к зарегистрированным сущностям, а затем поднимает
+        настоящий движок (импорт `public-api`) с подставленными зависимостями:
+        * tool: имя/`title`/`description` на месте, `annotations: { readOnlyHint: false }`,
+          `server.toolInputSchemaJson('skill-add')` отдаёт схему из в1 (properties/required);
+          вызов `executor({name:'demo',force:true,limit:3})` → `content[0].text` = вывод форматра,
+          конвейер получил `{args:['demo'],opts:{force:true,limit:3}}`; строки `'false'`/`'0'`
+          декодированы в `false`/`0`; отсутствующий аргумент → `args:[undefined]`;
+        * ошибки tool: команда с `success: false` → `{isError:true, text:'the deploy refused to run'}`;
+          незарегистрированный MCP-форматтер → `isError:true` с текстом «Command 'skill-add':
+          formatter 'key-value' failed: MCP formatter 'key-value' is not available: ...» —
+          фолбэка на CLI-форматтеры нет;
+        * `outputSchema` у зарегистрированного тула — `undefined`, `structuredContent` не отдаётся;
+        * ресурсы: без аргументов — ключ `clapp://board/list` в `_registeredResources`, метаданные
+          `{title, description, mimeType:'text/plain'}`, `read` → `contents[0]` с uri/mimeType/text;
+          с аргументами и опциями — `_registeredResourceTemplates['npm-info']` с шаблоном
+          `clapp://npm-info{?type,verbose}`, `read` → `contents`, а конвейер получил
+          `{args:['summary'],opts:{verbose:false}}` (строка `'false'` из URI декодирована);
+        * промпты: `_registeredPrompts['review']`, метаданные без аннотаций, `get` →
+          одно `user`-сообщение с текстом = вывод форматтера; аргументы валидируются схемой
+          (отсутствующий/неверный тип → ошибка запроса);
+        * движок целиком: `initialize()` собрал реестр (tools/resources/prompts + skipped
+          `no-formatter: no formatter declared` с предупреждением в stderr), `createServer()`
+          зарегистрировал все три поверхности, вызовы прошли через `executeCommand`
+          (getArguments → action) и `renderResult`.
+      - Шов форматтера проверен подменой резолвера: с подставленным `format(id, data)` все три
+        поверхности вернули его текст и данные команды, ничего в поверхностях менять не пришлось —
+        то есть `в5` подключается заменой провайдера.
+      - `npx prettier --check` по всем затронутым файлам (+ все модули движка) → «All matched
+        files use Prettier code style!».
+      - YAML: активный `_todo.yml` и `_reports.yml` разобраны js-yaml (items=15, groups=5,
+        reports=32) — ошибок нет.
+      - Grep по SDK: `registerResourceTemplate` в `@modelcontextprotocol/server@2.3.1` нет —
+        шаблон регистрируется перегрузкой `registerResource(name, uriOrTemplate: ResourceTemplate,
+        ...)`; так и сделано.
+
+      ОКРУЖЕНИЕ (важно для д1 и для запуска движка)
+      - Проба требует `tmp/tsconfig.mcp-probe.json`, иначе tsx не применяет `experimentalDecorators`
+        к лежащим в `tmp/` файлам (root tsconfig их исключает): воспроизводится минимальным
+        `tmp/decorator-probe.ts` — esbuild трактует декораторы как стандартные, и inversify падает
+        на `target.constructor`. Тот же конфиг маппит `@orion76/*` на собранные пакеты в
+        `node_modules` (их TS-исходники по paths root tsconfig под tsx не грузятся). То есть
+        реальный запуск движка под tsx возможен, но требует либо `--tsconfig` с такими путями,
+        либо файла-точки входа внутри `packages/**`; на сборку (rollup) это не влияет.
+
+      РЕШЕНИЯ ДЛЯ РЕВЬЮ (отклонения/выборы в объёме пункта)
+      1) Аннотации ресурса не отправляются вообще: у MCP-ресурса аннотации другой формы
+         (`audience`/`priority`/`lastModified`), `readOnlyHint` — поле тула и передать его в
+         `registerResource` нельзя без нарушения типа. Решение зафиксировано в JSDoc
+         register-resources.ts (замечание в1 учтено).
+      2) Обратный маппинг `args`/`opts` сделан отдельным модулем (entity-input.ts) — это общая
+         часть всех трёх поверхностей, а не логика конкретной; `undefined` в позиции
+         необязательного аргумента сохранён ради совместимости с CLI (`?? default` в командах).
+      3) В `opts` попадают только присланные опции, как в `Command.opts()`: иначе default
+         команды (`defaultValue` в схеме) перестал бы применяться.
+      4) Декодирование строк URI-шаблона в объявленный тип опции (`boolean`/`number`) добавлено
+         поверх конвенций § 6.2 — иначе `?json=false` приходило бы в команду строкой и было бы
+         истинным. Для tool/prompt декодирование не срабатывает (значения уже типизированы схемой).
+      5) Шаблон ресурса матчится SDK строго: каждый вариативный параметр обязателен в URI
+         (`clapp://npm-info` без query даёт `match → null`), `resources/list` шаблон не перечисляет
+         (в списке только `resources/templates/list`, потому что `list`-callback не задан). Это
+         следствие конвенции `clapp://<путь>{?arg1,arg2}`, а не выбор реализации; важно для д1
+         (читать ресурсы с параметрами нужно с query) и для команд с необязательными аргументами.
+      6) `structuredContent`/`outputSchema` не отдаются (по требованию MVP), `isError` формирует
+         сама поверхность тулов, а у ресурсов и промптов ошибка уходит как ошибка запроса —
+         у них нет своего флага результата.
+      7) Одна длинная строка (>120) — import-список типов в mcp.ts (139 символов): prettier
+         (printWidth 140 из `.prettierrc.json`) собирает такой import в одну строку, и в репозитории
+         это уже есть (registry.ts:1 — 133). Остальные новые строки ≤120.
+
+      ЧТО ОСТАЛОСЬ
+      - в5: собрать отдельный formatter PluginManager для MCP (константа типа плагина, паттерны,
+        DI-токен менеджера), реализовать MCP-плагины table/ordered-list/key-value без ANSI и
+        забиндить `MCP_FORMATTER_RESOLVER_TOKEN` (перед `container.get(ENGINE_TOKEN)`); поверхности
+        и движок менять не нужно — проверить это можно тем же пробником с заменой поля.
+      - г2 (prompt-команда для проверки поверхности), д1 (живая проверка по stdio) — не в этой
+        постановке.
+  - ref: в3
+    status: done
+    by: coder
+    at: 2026-10-16T16:45
+    text: |
+      Пункт в3 «Поверхность resources» закрыт. Команды `kind: "resource"` регистрируются в
+      `resources`/`resources/templates/list`; `read` возвращает `contents` с выводом MCP-форматтера.
+      Сборку/typecheck/тесты не запускал (профиль step), коммитов не делал.
+
+      НОВЫЕ ФАЙЛЫ
+      - register-resources.ts — `registerResources(server, entities, invoker)`. Без аргументов и
+        опций — статический URI `clapp://<путь>` в `registerResource(name, uri, metadata, cb)`;
+        с ними — `ResourceTemplate` `clapp://<путь>{?arg1,arg2}` (RFC 6570 query-расширение) через
+        перегрузку `registerResource(name, template, metadata, cb)` (отдельного
+        `registerResourceTemplate` в SDK 2.3.1 нет). `metadata` = `{ title, description,
+        mimeType: 'text/plain' }` (имя/описание — по конвенциям в1 из `buildEntityData`), `read` →
+        `contents: [{ uri: uri.href, mimeType: 'text/plain', text: вывод форматтера }]`. Шаблон
+        регистрируется без `list`-callback: ресурс с параметрами виден в `resources/templates/list`,
+        а не в `resources/list` (перечислить URI параметризованного ресурса поверхность не может).
+      - resource-uri.ts — `RESOURCE_URI_SCHEME`, `buildResourceUri(path)`,
+        `buildResourceUriTemplate(path, variables)`, `buildResourceVariables(config)` (имена
+        аргументов и опций в порядке объявления; пустой список → статический ресурс). В JSDoc
+        зафиксирована строгая матчинг-семантика SDK (каждый параметр шаблона обязателен в URI).
+
+      ЧЕМ УБЕДИЛСЯ
+      - Проба (см. отчёт в2, `tmp/mcp-surfaces-probe.ts`): `clapp://board/list` в
+        `_registeredResources` с метаданными `{title, description, mimeType:'text/plain'}`;
+        `readCallback(new URL('clapp://board/list'))` вернул `contents[0]` = `{uri, mimeType, text}`;
+        `_registeredResourceTemplates['npm-info']` c `uriTemplate.toString()` =
+        `clapp://npm-info{?type,verbose}`; `match('clapp://npm-info')` → `null` (строгий матчинг),
+        `match('clapp://npm-info?type=summary&verbose=false')` → `{type:'summary', verbose:'false'}`;
+        `readCallback` шаблона вернул `contents` с текстом, а конвейер получил
+        `{args:['summary'],opts:{verbose:false}}` (декодирование строки в boolean — entity-input.ts);
+        на движке статический ресурс прочитан через `createServer()` и вернул `contents` с текстом
+        подставленного резолвера.
+      - `npx prettier --check` — чисто; YAML задач валиден (js-yaml).
+
+      РЕШЕНИЕ ДЛЯ РЕВЬЮ
+      - Аннотации ресурса не отправляются: `readOnlyHint` — поле `ToolAnnotations`, а у ресурса свои
+        аннотации (`audience`/`priority`/`lastModified`) — это замечание ревью в1 учтено и
+        зафиксировано в JSDoc register-resources.ts. Вид команды уже означает «только чтение», а
+        поле, которым это можно было бы донести, у ресурса отсутствует.
+  - ref: в4
+    status: done
+    by: coder
+    at: 2026-10-16T16:45
+    text: |
+      Пункт в4 «Поверхность prompts» закрыт. Команды `kind: "prompt"` регистрируются через
+      `registerPrompt`; `get` возвращает одно `user`-сообщение с текстом = вывод MCP-форматтера.
+      Сборку/typecheck/тесты не запускал (профиль step), коммитов не делал.
+
+      НОВЫЙ ФАЙЛ
+      - register-prompts.ts — `registerPrompts(server, entities, invoker)` регистрирует
+        `registerPrompt(name, { title, description, argsSchema }, cb)`: `argsSchema` — из
+        `buildEntityData` (в1: `buildArgumentsStandardSchema` по `config.arguments`/`config.options`),
+        аннотации не передаются (у промпта их нет). `get` вызывает `invoker.invokeCommand(entity,
+        buildCommandInput(entity, args))` и возвращает `{ messages: [{ role: 'user', content:
+        { type: 'text', text } }] }` — сборку текста делает движок, команда отдаёт `ICommandResult`.
+
+      ЧЕМ УБЕДИЛСЯ
+      - Проба (см. отчёт в2): `_registeredPrompts['review']` с title/description; `get` →
+        `{messages:[{role:'user',content:{type:'text',text}}]}`, конвейер получил
+        `{args:['core'],opts:{depth:3}}`; аргументы валидируются схемой — без обязательного
+        аргумента ошибка «data must have required property 'target'», при строке вместо числа —
+        «data/depth must be number» (то есть типизация значений у промпта идёт через схему, а не
+        через декодирование строк, как у ресурсов); на движке `get` вернул сообщение с текстом
+        подставленного резолвера.
+      - `npx prettier --check` — чисто.
+
+      РЕШЕНИЕ ДЛЯ РЕВЬЮ
+      - Промпт отдаёт ровно одно `user`-сообщение и не добавляет ни текста-обёртки, ни системного
+        сообщения (по требованию: текст = вывод форматтера команды); ошибка команды уходит как
+        ошибка запроса — у промпта нет своего флага результата.
+  - ref: в5
+    status: in-progress
+    by: planner
+    at: 2026-10-16T17:05
+    text: |
+      Пункт `в5` взят в работу и передан исполнителю: в `_todo.yml` добавлен обязательный `executor`
+      (`в5` — coder; группы `а`/`б`/`в`/`г` — coder, группа `д` — tester, `д1` — tester), статус
+      `в5` → `in-progress`.
+
+      Заодно обновлена схема workflow (глобальные инструкции, не файлы задачи): в `_todo.yml`
+      появилось обязательное поле `executor` у каждого пункта и группы (`ai-workflow.md` § 5, § 10,
+      § 13, § 14); добавлен агент `tester` (запуски сборки/тестов/отладочных скриптов), у `coder`
+      `bash` теперь только read-only; статусы пунктов и `_reports.yml` ведёт только `planner`, а
+      `coder`/`tester` отчитываются файлом-конвертом `messages/<роль>-planner.yml`; коммит перед
+      тестированием и откат отладочных правок тестировщика — тоже `planner`.
+
+      Постановка `в5`: за один прогон исполнитель делает только этот пункт; сборка, typecheck и
+      тесты не запускаются (профиль `step`), проверки — отдельным прогоном тестировщика.
+  - ref: в5
+    status: done
+    by: planner
+    at: 2026-10-16T17:35
+    text: |
+      По отчёту исполнителя (`messages/coder-planner.yml`, `result: выполнено`) пункт `в5` закрыт.
+
+      Первый прогон `в5` был прерван и отклонён пользователем: исполнитель начал с рефакторинга
+      CLI-форматтеров (параметризация рендера стилем в `packages/core/plugins/formatters/
+      {table,ordered-list,key-value}/lib.ts`, новые `render-style.ts` и `types.ts`). Правки откачены
+      планировщиком (`git checkout` по трём `lib.ts`, удалены два новых файла) — CLI-набор вернулся к
+      состоянию HEAD; проверено `git status --porcelain -- packages/core/plugins` (пусто).
+
+      Повторная постановка (требование пользователя: «для форматтеров mcp должен быть другой plugin
+      manager, который будет загружать другие форматтеры, с теми же идентификаторами, но
+      форматировать они будут для stdio»): сделан самостоятельный набор MCP-форматтеров
+      `packages/core/plugins/mcp-formatters/**` (`mcp-formatter.base.ts`, `table/`, `ordered-list/`,
+      `key-value/`, `index.ts`) — те же id и `kind`, те же входные типы, без стилизации; свой
+      менеджер `MCP_FORMATTER_MANAGER_TOKEN` через `providePluginManager(PLUGIN_FORMATTER_MCP_TYPE, …)`
+      в `bootstrap.ts`; `MCPFormatterResolver` (`engines/mcp/formatter-resolver.ts`) резолвит id
+      только в MCP-менеджере (фолбэка на CLI нет), бинд `MCP_FORMATTER_RESOLVER_TOKEN` — до
+      `container.get(ENGINE_TOKEN)`; хост-пере-экспорт `packages/ai/plugins/mcp-formatters/…` и ключ
+      `PLUGIN_FORMATTER_MCP` в `packages/ai/clapp.config.yml`. CLI-набор не тронут, идентификаторы
+      `formatter:` у команд не менялись.
+
+      Проверки — статические (grep, сверка сигнатур, порядок бинда); сборка/typecheck/тесты не
+      запускались (профиль `step`). Вход для тестировщика перечислен в конверте.
+      Открытые решения для ревью: собственный `MCPFormatterBase` вместо импорта `PluginFormatterBase`
+      (следствие запрета трогать/импортировать CLI-каталог), мёртвая инъекция
+      `FORMATTER_MANAGER_TOKEN` в `engines/mcp/mcp.ts:63` (наследие `в2`), предсуществующее
+      расхождение app-root у `packages/ai/src/bin/clapp-ai.ts:13` (вне рамок `в5`).
+  - ref: в
+    status: done
+    by: planner
+    at: 2026-10-16T17:35
+    text: |
+      Группа «Поверхности MCP (tools/resources/prompts)» закрыта: все её пункты (`в1`–`в5`) в статусе
+      `done`. Незакрытые пункты задачи — `г2` (prompt-команда, `coder`), `д1` (живая проверка по
+      stdio, `tester`); `г1` остаётся `deferred`.
+  - ref: в5
+    status: todo
+    by: planner
+    at: 2026-10-16T17:36
+    text: |
+      Возврат `в5` в `todo` по решению пользователя (2026-10-16). Отклонены два решения прошлого
+      прогона:
+
+      1. Отдельный тип плагина и отдельный formatter PluginManager для MCP не нужны. Менеджер
+         форматтеров один (`PLUGIN_FORMATTER` / `FORMATTER_MANAGER_TOKEN`), отличий у MCP-набора
+         только `patterns` в конфиге потребителя (пример — `packages/ai/clapp.config.yml`); MCP-потребитель
+         (`mcp-workflow`) подключает набор своим конфигом в следующих задачах. Поэтому откатываются
+         `PLUGIN_FORMATTER_MCP_TYPE` (в `@clapp/common`, `UPluginTypes`), ключ в `APP_CONFIG_DEFAULT`,
+         строка в `resolveConfigPatterns`, а также `MCP_FORMATTER_MANAGER_TOKEN`.
+      2. Базовый класс форматтера должен быть **один** и жить в `packages/core/src/` — `MCPFormatterBase`
+         (дубль контракта) убирается, оба набора импортируют общий класс.
+
+      Также откатываются правки в `packages/ai` (`packages/ai/plugins/mcp-formatters/**`, ключ
+      `PLUGIN_FORMATTER_MCP` в `packages/ai/clapp.config.yml`): целевой проект задачи — `core`,
+      `@clapp/ai` — CLI-хост и MCP-форматтеры ему не нужны.
+
+      Шов `MCP_FORMATTER_RESOLVER_TOKEN` + `unavailable-formatter-resolver.ts` признан лишним: движок
+      резолвит `definition.formatter` прямо в `FORMATTER_MANAGER_TOKEN`, отсутствие плагина — понятная
+      ошибка без фолбэка.
+
+      Документы задачи приведены в соответствие: `_task.md` (требование 9), `_concept.md` (§ 6.1 п. 4,
+      § 6.3 «рендер»), `_todo.yml` (текст и действия `в5`). Отчёт прошлого прогона заархивирован:
+      `messages/archive/coder-planner-2026-10-16-1733.yml`.
+  - ref: в
+    status: todo
+    by: planner
+    at: 2026-10-16T17:36
+    text: |
+      Группа возвращена в `todo`: её пункт `в5` открыт на переделку (см. запись выше). Остальные
+      пункты группы (`в1`–`в4`) остаются `done`.
+  - ref: в5
+    status: done
+    by: planner
+    at: 2026-10-16T17:52
+    text: |
+      Переделка `в5` закрыта по отчёту исполнителя (`messages/coder-planner.yml`, `result: выполнено`).
+
+      Что сделано по решению пользователя: базовый класс форматтера один и перенесён в ядро —
+      `packages/core/src/formatters/formatter.base.ts` (+ `src/formatters/index.ts`, экспорт через
+      `public-api.ts`), старый `plugins/formatters/formatter.base.ts` удалён; на общий класс переведены
+      оба набора (в CLI-плагинах изменена только строка импорта, плюс `plugins/formatters/index.ts`
+      потерял реэкспорт уехавшего базового класса). Дубль `MCPFormatterBase` удалён. Отдельный тип
+      плагина и менеджер для MCP откачены: `PLUGIN_FORMATTER_MCP_TYPE` убран из `@clapp/common`,
+      ключа нет в `APP_CONFIG_DEFAULT`, строки нет в `resolveConfigPatterns`, токены
+      `MCP_FORMATTER_MANAGER_TOKEN`/`MCP_FORMATTER_RESOLVER_TOKEN` и шов резолвера
+      (`formatter-resolver.ts`, `unavailable-formatter-resolver.ts`, `IMCPFormatterResolver`) удалены —
+      движок резолвит `definition.formatter` в обычном `FORMATTER_MANAGER_TOKEN` (инъекция из `в2`
+      стала рабочей), при отсутствии плагина — понятная ошибка без фолбэка. Отдельный набор
+      `packages/core/plugins/mcp-formatters/**` сохранён (те же id, plain text без ANSI). Правки в
+      `packages/ai` откачены полностью.
+
+      Проверено планировщиком по дереву (чтение/git): `git status --porcelain -- packages/ai` и
+      `git diff -- packages/ai` — пусто; `packages/core/plugins/formatters` — только удаление
+      `formatter.base.ts`, правка `index.ts` и по одной строке импорта в трёх плагинах; grep по
+      `packages/*/src` и `packages/*/plugins` — `PLUGIN_FORMATTER_MCP`/`MCP_FORMATTER_*`/`MCPFormatterBase`/
+      `IMCPFormatterResolver` не встречаются; базовый класс ровно один (`src/formatters/formatter.base.ts`).
+      Запусков не было (профиль `step`): сборка, typecheck и тесты — на стороне тестировщика.
+
+      Замечания исполнителя, вынесенные отдельно: (1) `packages/core/tests/formatters/key-value.test.ts`
+      импортирует исчезнувший с коммита `85bf38e` путь `src/formatters/**` — тест сломан не нами;
+      (2) `plugins/**` вне `include` в `packages/core/tsconfig.json` — предсуществующий риск сборки;
+      (3) при отсутствующем форматтере id дублируется в двух сообщениях (`resolveFormatter` +
+      обёртка `renderResult`) — косметика. Пункт (1) стоит отдельной задачи, (2)/(3) — на усмотрение.
+  - ref: в
+    status: done
+    by: planner
+    at: 2026-10-16T17:52
+    text: |
+      Группа «Поверхности MCP (tools/resources/prompts)» закрыта повторно: `в1`–`в5` — `done`.
+      Незакрытые пункты задачи — `г2` (prompt-команда, `coder`) и `д1` (живая проверка по stdio,
+      `tester`); `г1` — `deferred`.
+  - ref: г2
+    status: in-progress
+    by: planner
+    at: 2026-10-16T18:45
+    text: |
+      Пункт `г2` передан исполнителю (статус `in-progress`). Объём постановки: добавить в
+      `packages/ai/plugins/commands/**` минимальную команду с `kind: 'prompt'` (пара аргументов,
+      результат через `formatter`, печатать самой нельзя) — в проекте нет ни одной команды этого вида,
+      поэтому поверхность `prompts` движка иначе нечем проверить. Профиль `step`: сборка, typecheck и
+      тесты не запускаются; отчёт исполнителя — в `messages/coder-planner.yml`, статусы ведёт
+      планировщик. Конверт прошлого прогона заархивирован: `messages/archive/coder-planner-2026-10-16-1845.yml`.
+  - ref: г2
+    status: done
+    by: planner
+    at: 2026-10-16T18:55
+    text: |
+      По отчёту исполнителя (`messages/coder-planner.yml`, `result: выполнено`) пункт `г2` закрыт.
+
+      Добавлена единственная в проекте prompt-команда: `packages/ai/plugins/commands/brief/`
+      (`brief.plugin.ts` — класс `BriefCommandPlugin`, `id: 'brief'`, `kind: COMMAND_KIND_PROMPT`,
+      `formatter: 'ordered-list'`, аргумент `goal` (required) и опция `depth` с `choices`
+      `brief|detailed`; `types.ts` — `IBriefCommandConfig`). Команда возвращает данные через
+      `ICommandResult.data` (тип `IOrderedListData`) и ничего не печатает. Существующие команды и
+      `packages/core/**` не тронуты.
+
+      **Важно (влияет на `д1`): команда сейчас недостижима — сломан хост `@clapp/ai`, и это не регрессия
+      `г2`.** По отчёту исполнителя зафиксированы четыре предсуществующих дефекта:
+      1. `packages/ai/src/bin/clapp-ai.ts:17` вызывает `run(rootContainer, { configPath, appRoot })`,
+         тогда как в ядре `run(engineClass, container, options?)` (`packages/core/src/bootstrap.ts:64`) —
+         расхождение сигнатур, запуск через эту точку входа сломан;
+      2. appRoot в том же bin = `packages/ai/src` (dev) или `dist`, а паттерн
+         `commands/**/*.plugin.{js,ts}` из `packages/ai/clapp.config.yml:10` резолвится от appRoot →
+         итоговый путь `packages/ai/src/commands/**` не существует (команды лежат в
+         `packages/ai/plugins/commands/**`) — discovery не находит ни `brief`, ни существующие команды;
+      3. `packages/ai/tsconfig.build.json` (`rootDir: src`, `include: ["src/**/*.ts"]`) не компилирует
+         `plugins/**` в `dist`;
+      4. существующие команды импортируют helpers из несуществующего barrel —
+         `packages/ai/plugins/commands/{board/list,board/next}/*.plugin.ts` тянут `../../../public-api.js`,
+         `npm-info` — `../../public-api.js`; оба пути резолвятся в `packages/ai/plugins/public-api.ts`,
+         которого в дереве нет (есть только `packages/ai/src/public-api.ts`).
+
+      Вывод: проверка поверхности `prompts` хостом `@clapp/ai` невозможна без починки раскладки/точек
+      входа `@clapp/ai` — это отдельная работа (предложена пользователю как новая задача). Для `д1`
+      нужен хост с корректными appRoot/patterns (или временный конфиг в `tmp/`).
+
+      Проверки — только чтением/grep (запусков не было, профиль `step`); состояние дел по коду
+      перечислено в `checked` конверта. Пункт закрыт как выполненный по своему объёму (команда
+      добавлена); достижимость через хост — предмет отдельной задачи.
+  - ref: д1
+    status: in-progress
+    by: planner
+    at: 2026-10-17T11:08
+    text: |
+      Пункт `д1` («Живая проверка прототипа по stdio») передан тестировщику; группа `д` также
+      переведена в `in-progress`.
+
+      Перед прогоном рабочее дерево зафиксировано коммитами (правило раздела 15): код фаз 2–3
+      (`packages/common`, `packages/core`, prompt-команда `packages/ai/plugins/commands/brief`) и
+      данные задачи. Тестировщик работает на чистом дереве; отладочные правки кода он помечает, а
+      планировщик откатывает их после прогона.
+
+      Объём проверки: ровно `д1` — живой запуск движка по stdio и MCP-клиент по трём поверхностям
+      плюс негативные сценарии из действий пункта. Сборка/typecheck/тесты пунктом не заказаны
+      (профиль `step`), но тестировщик может запускать их для диагностики.
+
+      Известное ограничение (не дефект `д1`): хост `@clapp/ai` сломан предсуществующими дефектами
+      (сигнатура `run` в `packages/ai/src/bin/clapp-ai.ts:17`, appRoot/patterns discovery, отсутствие
+      barrel `packages/ai/plugins/public-api.ts`, `plugins/**` вне `tsconfig.build.json`), поэтому
+      живая проверка выполняется на временном хосте в `tmp/` (каталог в `.git/info/exclude`), а
+      `brief` подключается из `packages/ai/plugins/commands/brief` — команда самодостаточна.
