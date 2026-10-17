@@ -6,8 +6,12 @@ import type { IPluginContext, IPluginContextDefinition } from '@clapp/common';
 import { CONTEXT_MANAGER_TOKEN } from '../constants/tokens';
 
 /**
- * Specialized DI container for application contexts. Every context is a plugin
- * of type `PLUGIN_CONTEXT_TYPE` living in `packages/core/src/context/plugins/**`.
+ * Specialized DI container for application contexts: a core service (a facade
+ * over the context plugin manager), not a plugin. The plugin loader never
+ * discovers it, therefore it lives in `src/` (`src/context`), not in `plugins/`.
+ *
+ * The contexts it resolves are plugins of type `PLUGIN_CONTEXT_TYPE` living in
+ * `packages/core/plugins/context/plugins/**`.
  *
  * `get(id)` resolves the context plugin, satisfies its `dependencies` (other
  * context ids) and passes the dependency **values** to `getContext(...)` in

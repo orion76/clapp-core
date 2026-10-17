@@ -3,7 +3,7 @@ import { NodePlugin } from '@orion76/node-plugin';
 import { PLUGIN_CONTEXT_TYPE, type IPluginContext, type IPluginContextDefinition } from '@clapp/common';
 import { getProjectRoot } from '@clapp/utils';
 
-import { PluginContextBase } from '../plugin-context.base';
+import { PluginContextBase } from '../../../src/context/plugin-context.base';
 
 @NodePlugin<IPluginContextDefinition<string>>({
   type: PLUGIN_CONTEXT_TYPE,
