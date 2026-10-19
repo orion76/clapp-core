@@ -16,6 +16,20 @@ import { injectable } from 'inversify';
 import type { IClappPluginLoaderConfig } from './types';
 
 /**
+ * A collected plugin definition that may carry the optional `parent` reference of
+ * a command definition. The base `IPluginDefinition` of `@orion76/plugin` has no
+ * `parent` field — it is only declared by the command subtype
+ * `IPluginCommandDefinition` (`packages/common/src/types/plugin.ts`). The subtree
+ * walk of {@link ClappPluginLoader.pruneDisabledSubtrees} needs the optional
+ * `parent` and must stay type-safe for every definition the loader collects
+ * (commands, contexts and formatters alike). The intersection narrows the read
+ * without narrowing the actual runtime objects: at runtime `parent` exists only
+ * on command definitions and is `undefined` on the rest, so the walk keeps the
+ * same behavior with the base type.
+ */
+type ClappPluginDefinition = IPluginDefinition & { parent?: string };
+
+/**
  * File-based plugin loader of `@clapp/core`. It is a drop-in replacement for the
  * `@orion76/node-plugin` `PluginLoaderFromFile` that understands the source
  * based config of clapp (`IClappPluginLoaderConfig`): every source is globbed on
@@ -105,7 +119,11 @@ export class ClappPluginLoader extends PluginLoaderFromFile {
       }
     }
 
-    const enabledDefinitions = this.pruneDisabledSubtrees(definitions, typeDisabled, sourceDisabledIds);
+    const enabledDefinitions = this.pruneDisabledSubtrees(
+      definitions as Map<string, ClappPluginDefinition>,
+      typeDisabled,
+      sourceDisabledIds,
+    );
 
     return [...enabledDefinitions.values()];
   }
@@ -130,10 +148,10 @@ export class ClappPluginLoader extends PluginLoaderFromFile {
    * @returns Definitions that are not part of a disabled subtree
    */
   protected pruneDisabledSubtrees(
-    definitions: Map<string, IPluginDefinition>,
+    definitions: Map<string, ClappPluginDefinition>,
     typeDisabled: Set<string>,
     sourceDisabledIds: Set<string>,
-  ): Map<string, IPluginDefinition> {
+  ): Map<string, ClappPluginDefinition> {
     const disabled = new Set([...typeDisabled, ...sourceDisabledIds]);
     const initiallyDisabledCount = disabled.size;
 
@@ -150,7 +168,7 @@ export class ClappPluginLoader extends PluginLoaderFromFile {
       return definitions;
     }
 
-    const kept = new Map<string, IPluginDefinition>();
+    const kept = new Map<string, ClappPluginDefinition>();
 
     for (const [id, definition] of definitions) {
       if (!disabled.has(id)) {
@@ -175,7 +193,7 @@ export class ClappPluginLoader extends PluginLoaderFromFile {
    */
   protected isInDisabledSubtree(
     id: string,
-    definitions: Map<string, IPluginDefinition>,
+    definitions: Map<string, ClappPluginDefinition>,
     disabled: Set<string>,
   ): boolean {
     const seen = new Set<string>();
