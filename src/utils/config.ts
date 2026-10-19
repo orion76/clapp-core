@@ -155,12 +155,73 @@ function normalizeSource(raw: unknown, pluginType: UPluginTypes, index: number):
     throw new Error(`Invalid plugin source #${index} of "${pluginType}": "disabled" must be a list of plugin ids.`);
   }
 
+  const normalizedPatterns = patterns === undefined ? [] : validateNonEmptyStringList(
+    patterns,
+    pluginType,
+    index,
+    'patterns',
+  );
+  const normalizedDisabled = disabled === undefined ? [] : validateNonEmptyStringList(
+    disabled,
+    pluginType,
+    index,
+    'disabled',
+  );
+
   return {
     type,
-    patterns: patterns ?? [],
+    patterns: normalizedPatterns,
     library,
-    disabled: disabled ?? [],
+    disabled: normalizedDisabled,
   };
+}
+
+/**
+ * Validates the elements of a string list field of a plugin source. Every
+ * element must be a non-empty string; the error names the plugin type, the
+ * position of the source and the index of the offending element, so a
+ * malformed value can be located without reading the whole config.
+ *
+ * @param values Values of the field as read from the config
+ * @param pluginType Plugin type the source belongs to
+ * @param index Position of the source in the `sources` list
+ * @param field Name of the field (`patterns` or `disabled`)
+ * @returns Validated values
+ */
+function validateNonEmptyStringList(values: unknown[], pluginType: UPluginTypes, index: number, field: string): string[] {
+  for (let elementIndex = 0; elementIndex < values.length; elementIndex += 1) {
+    const value = values[elementIndex];
+    if (typeof value !== 'string' || value.length === 0) {
+      const json = JSON.stringify(value);
+      throw new Error(
+        `Invalid plugin source #${index} of "${pluginType}": "${field}" must be a list of non-empty strings, got ${json} at index ${elementIndex}.`,
+      );
+    }
+  }
+
+  return values as string[];
+}
+
+/**
+ * Validates the elements of the type-level `disabled` list of a plugin type.
+ * The message names the plugin type and the index of the offending element.
+ *
+ * @param values Values of the list as read from the config
+ * @param pluginType Plugin type the list belongs to
+ * @returns Validated values
+ */
+function validateTypeDisabled(values: unknown[], pluginType: UPluginTypes): string[] {
+  for (let elementIndex = 0; elementIndex < values.length; elementIndex += 1) {
+    const value = values[elementIndex];
+    if (typeof value !== 'string' || value.length === 0) {
+      const json = JSON.stringify(value);
+      throw new Error(
+        `Invalid plugin config of "${pluginType}": "disabled" must be a list of non-empty strings, got ${json} at index ${elementIndex}.`,
+      );
+    }
+  }
+
+  return values as string[];
 }
 
 /**
@@ -190,9 +251,11 @@ function normalizeDiscoveryConfig(raw: unknown, pluginType: UPluginTypes): IPlug
     throw new Error(`Invalid plugin config of "${pluginType}": "disabled" must be a list of plugin ids.`);
   }
 
+  const typeDisabled = validateTypeDisabled(disabled ?? [], pluginType);
+
   return {
     sources: (sources ?? []).map((source, index) => normalizeSource(source, pluginType, index)),
-    disabled: disabled ?? [],
+    disabled: typeDisabled,
   };
 }
 
