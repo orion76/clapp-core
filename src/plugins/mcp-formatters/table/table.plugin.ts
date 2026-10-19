@@ -4,7 +4,7 @@ import { NodePlugin } from '@orion76/node-plugin';
 import { PLUGIN_FORMATTER_TYPE, type IPluginFormatterDefinitionData } from '@clapp/common';
 import type { ITableData } from '@clapp/command';
 
-import { PluginFormatterBase } from '../../../src/formatters/formatter.base';
+import { PluginFormatterBase } from '../../../formatters/formatter.base';
 import { renderTable } from './lib';
 
 /**
@@ -12,7 +12,7 @@ import { renderTable } from './lib';
  * without terminal styling. It carries the same id and kind as the terminal
  * `table` formatter, but writes for the protocol stream of an MCP server: a host
  * opts into this set by pointing the discovery patterns of `PLUGIN_FORMATTER_TYPE`
- * at the modules of `plugins/mcp-formatters`.
+ * at the modules of `src/plugins/mcp-formatters`.
  */
 @NodePlugin<IPluginFormatterDefinitionData<'table'>>({
   type: PLUGIN_FORMATTER_TYPE,

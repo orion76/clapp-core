@@ -208,7 +208,7 @@ export class MCPEngine implements IEngine, IMCPCommandInvoker {
    * manager the engine received from the DI container — the same manager a CLI run resolves its
    * formatters in. Which plugins it holds is the choice of the host: a host that serves an MCP
    * server points the discovery patterns of `PLUGIN_FORMATTER_TYPE` at a set that renders for the
-   * protocol stream (the built-in set of `plugins/mcp-formatters`), so the same command identifier
+   * protocol stream (the built-in set of `src/plugins/mcp-formatters`), so the same command identifier
    * is served by a formatter of that set. There is deliberately no fallback to another set: the
    * host configures exactly one, and a formatter whose plugin is not registered is an error. The
    * engine never renders a result with a formatter it did not resolve.

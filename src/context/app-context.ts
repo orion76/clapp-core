@@ -11,7 +11,7 @@ import { CONTEXT_MANAGER_TOKEN } from '../constants/tokens';
  * discovers it, therefore it lives in `src/` (`src/context`), not in `plugins/`.
  *
  * The contexts it resolves are plugins of type `PLUGIN_CONTEXT_TYPE` living in
- * `packages/core/plugins/context/plugins/**`.
+ * `packages/core/src/plugins/context/plugins/**`.
  *
  * `get(id)` resolves the context plugin, satisfies its `dependencies` (other
  * context ids) and passes the dependency **values** to `getContext(...)` in

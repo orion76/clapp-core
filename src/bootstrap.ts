@@ -4,7 +4,12 @@ import type { Container } from 'inversify';
 
 import { EVENT_BUS_TOKEN, Type, type IPluginCommand, type IPluginContext, type IPluginFormatter } from '@clapp/common';
 
-import { PLUGIN_COMMAND_TYPE, PLUGIN_CONTEXT_TYPE, PLUGIN_FORMATTER_TYPE } from '@clapp/common';
+import {
+  PLUGIN_COMMAND_TYPE,
+  PLUGIN_CONTEXT_TYPE,
+  PLUGIN_FORMATTER_TYPE,
+  type IPluginDiscoveryConfig,
+} from '@clapp/common';
 import { APP_CONFIG_PATH_DEFAULT } from './constants/paths';
 import {
   APP_CONFIG_TOKEN,
@@ -16,9 +21,27 @@ import {
 } from './constants/tokens';
 
 import { EventBus } from './events/event-bus';
+import { ClappPluginLoader, type IClappPluginLoaderConfig } from './plugin-loader';
 import { getAppConfig, resolveExitCode } from './public-api';
 import type { IEngine, IInitAppOptions } from './types';
 import { loggerBind, loggerCollectionBind } from './utils/logger';
+
+/**
+ * Converts the source based plugin config of a type into the config of the clapp
+ * plugin loader: the patterns of every source (already resolved against the root
+ * of their source) plus the `disabled` lists the loader applies per source and
+ * per type.
+ *
+ * @param pluginConfig Discovery config of a plugin type
+ * @returns Loader config of the plugin type
+ */
+function createLoaderConfig(pluginConfig: IPluginDiscoveryConfig): IClappPluginLoaderConfig {
+  return {
+    patterns: pluginConfig.sources.flatMap((source) => source.patterns),
+    sources: pluginConfig.sources.map((source) => ({ patterns: source.patterns, disabled: source.disabled })),
+    disabled: pluginConfig.disabled,
+  };
+}
 
 export async function bootstrapApp(engineClass: Type<IEngine>, container: Container, options: IInitAppOptions = {}): Promise<IEngine> {
   const { appRoot } = options;
@@ -37,21 +60,21 @@ export async function bootstrapApp(engineClass: Type<IEngine>, container: Contai
   providePluginManager<IPluginCommand>(
     PLUGIN_COMMAND_TYPE,
     COMMAND_MANAGER_TOKEN,
-    { config: config.plugins[PLUGIN_COMMAND_TYPE] },
+    { config: createLoaderConfig(config.plugins[PLUGIN_COMMAND_TYPE]), pluginLoaderCls: ClappPluginLoader },
     container,
   );
 
   providePluginManager<IPluginContext>(
     PLUGIN_CONTEXT_TYPE,
     CONTEXT_MANAGER_TOKEN,
-    { config: config.plugins[PLUGIN_CONTEXT_TYPE] },
+    { config: createLoaderConfig(config.plugins[PLUGIN_CONTEXT_TYPE]), pluginLoaderCls: ClappPluginLoader },
     container,
   );
 
   providePluginManager<IPluginFormatter>(
     PLUGIN_FORMATTER_TYPE,
     FORMATTER_MANAGER_TOKEN,
-    { config: config.plugins[PLUGIN_FORMATTER_TYPE] },
+    { config: createLoaderConfig(config.plugins[PLUGIN_FORMATTER_TYPE]), pluginLoaderCls: ClappPluginLoader },
     container,
   );
 

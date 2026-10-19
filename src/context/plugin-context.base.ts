@@ -8,7 +8,7 @@ import type { IPluginContext, IPluginContextDefinition } from '@clapp/common';
  *
  * The class itself is a core base class, not a plugin: the plugin loader never
  * discovers it, therefore it lives in `src/` (`src/context`), while the concrete
- * context plugins live in `packages/core/plugins/context/plugins/**`.
+ * context plugins live in `packages/core/src/plugins/context/plugins/**`.
  * @template C Context value
  * @template A Context dependency values
  */

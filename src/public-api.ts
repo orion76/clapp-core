@@ -21,7 +21,8 @@ export type {
 export * from './bootstrap';
 
 export * from './formatters';
-export * from '../plugins/formatters';
-export * from '../plugins/mcp-formatters';
+export * from './plugins/formatters';
+export * from './plugins/mcp-formatters';
+export * from './plugin-loader';
 export * from './utils/config';
 export * from './utils';

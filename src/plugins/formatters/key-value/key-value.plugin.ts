@@ -4,14 +4,12 @@ import { NodePlugin } from '@orion76/node-plugin';
 import { PLUGIN_FORMATTER_TYPE, type IPluginFormatterDefinitionData } from '@clapp/common';
 import type { IKeyValueData } from '@clapp/command';
 
-import { PluginFormatterBase } from '../../../src/formatters/formatter.base';
+import { PluginFormatterBase } from '../../../formatters/formatter.base';
 import { renderKeyValue } from './lib';
 
 /**
- * MCP formatter plugin that renders field data as aligned key-value pairs
- * grouped into titled sections, without terminal styling. It carries the same
- * id and kind as the terminal `key-value` formatter, but writes for the protocol
- * stream of an MCP server.
+ * Formatter plugin that renders field data as aligned key-value pairs grouped
+ * into titled sections.
  */
 @NodePlugin<IPluginFormatterDefinitionData<'key-value'>>({
   type: PLUGIN_FORMATTER_TYPE,
@@ -20,11 +18,11 @@ import { renderKeyValue } from './lib';
   kind: 'key-value',
 })
 @injectable()
-export class MCPKeyValueFormatterPlugin extends PluginFormatterBase<IKeyValueData> {
+export class KeyValueFormatterPlugin extends PluginFormatterBase<IKeyValueData> {
   /**
    * Renders the pairs.
    * @param data Key-value data
-   * @returns Blocks ready for the protocol stream
+   * @returns Blocks ready for the terminal
    */
   async format(data: IKeyValueData): Promise<string> {
     return renderKeyValue(data);

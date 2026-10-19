@@ -7,9 +7,9 @@ export const APP_CONFIG_DEFAULT: IAppConfig = {
   description: 'CLI app',
   version: '',
   plugins: {
-    [PLUGIN_COMMAND_TYPE]: { patterns: [] },
-    [PLUGIN_CONTEXT_TYPE]: { patterns: [] },
-    [PLUGIN_FORMATTER_TYPE]: { patterns: [] },
+    [PLUGIN_COMMAND_TYPE]: { sources: [], disabled: [] },
+    [PLUGIN_CONTEXT_TYPE]: { sources: [], disabled: [] },
+    [PLUGIN_FORMATTER_TYPE]: { sources: [], disabled: [] },
   },
   loggers: APP_LOGGERS_CONFIG,
 };
