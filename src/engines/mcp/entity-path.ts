@@ -10,14 +10,15 @@ export const ENTITY_PATH_SEPARATOR = '/';
 /**
  * Builds the path of a command in the hierarchy.
  *
- * A group node contributes its id to the path of its subcommands, so the path is
+ * A group node contributes its `command` to the path of its subcommands, so the path is
  * assembled on the way down the hierarchy: `board` plus `list` gives `board/list`, which
  * is the name of the entity. A root command has no parent path and is named by its own
- * id.
+ * `command`. The segment is the `command` of a definition — the name the command has on
+ * the surface — and never its `id`, which is the identifier of the plugin definition.
  * @param parentPath Path of the parent node, empty for a root command
- * @param id Id of the node
+ * @param command Name of the node on the surface (its `command`)
  * @returns Full path of the node, used as the MCP name of its entity
  */
-export function buildEntityPath(parentPath: string, id: string): string {
-  return parentPath ? `${parentPath}${ENTITY_PATH_SEPARATOR}${id}` : id;
+export function buildEntityPath(parentPath: string, command: string): string {
+  return parentPath ? `${parentPath}${ENTITY_PATH_SEPARATOR}${command}` : command;
 }

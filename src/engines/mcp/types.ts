@@ -7,8 +7,8 @@ import type { IPluginCommandDefinition, UCommandKind } from '@clapp/common';
  *
  * Only a leaf command becomes an entity: a group node is a container that carries
  * the path prefix of its subcommands and is never an entity of its own. `path` is
- * the full path of the command in the hierarchy — its ids joined with `/`
- * (`board/list`) — and is the name an MCP client sees. `formatter` is never empty,
+ * the full path of the command in the hierarchy — the `command` segments of its
+ * nodes joined with `/` (`board/list`) — and is the name an MCP client sees. `formatter` is never empty,
  * because the surface renders the result of a command with its formatter, and a
  * command without one is left out of the registry.
  */

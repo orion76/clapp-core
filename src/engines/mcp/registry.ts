@@ -8,12 +8,14 @@ import type { IMCPEntity, IMCPEntityRegistry } from './types';
  * Builds the registry of MCP entities from the command hierarchy.
  *
  * The hierarchy is walked from the roots down: a node with children is a group — a
- * container that only contributes its id to the path of its subcommands — and every
- * leaf node becomes an entity of the surface matching its `kind`. A leaf command is
- * left out of the registry in two cases, each with a reason: it is a group without
- * subcommands (nothing to expose), or it declares no formatter (an MCP surface renders
- * a command result with its formatter, and such a command prints its own output, which
- * under the stdio transport would corrupt the protocol stream).
+ * container that only contributes its `command` to the path of its subcommands — and
+ * every leaf node becomes an entity of the surface matching its `kind`. The path of a
+ * node is assembled from the `command` segments of the nodes above it and of its own
+ * `command`, while `definition.id` stays the identifier the plugin is resolved by. A
+ * leaf command is left out of the registry in two cases, each with a reason: it is a
+ * group without subcommands (nothing to expose), or it declares no formatter (an MCP
+ * surface renders a command result with its formatter, and such a command prints its
+ * own output, which under the stdio transport would corrupt the protocol stream).
  * @param nodes Roots of the command hierarchy built by `buildHierarchy`
  * @returns Entities grouped by surface plus the skipped commands with their reasons
  */
@@ -28,8 +30,8 @@ export function buildEntityRegistry(nodes: ICommandNode[]): IMCPEntityRegistry {
 function collectEntities(nodes: ICommandNode[], prefix: string, registry: IMCPEntityRegistry): void {
   for (const node of nodes) {
     const { definition } = node;
-    const { id, kind, formatter } = definition;
-    const path = buildEntityPath(prefix, id);
+    const { command, kind, formatter } = definition;
+    const path = buildEntityPath(prefix, command);
 
     if (node.children.length > 0) {
       collectEntities(node.children, path, registry);

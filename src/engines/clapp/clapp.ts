@@ -121,17 +121,38 @@ export class CliEngine implements IEngine {
     process.stdout.write(output.endsWith('\n') ? output : `${output}\n`);
   }
 
+  /**
+   * Registers a leaf command in commander.
+   *
+   * The name on the surface comes from `definition.command` — the segment a user types,
+   * such as `list` nested under `board`. The action keeps receiving `definition.id`: that
+   * is the identifier of the plugin definition the manager resolves the plugin by, and for
+   * a command of a set it is the full path (`board_list`) rather than the segment.
+   * @param target Commander command the leaf is registered on
+   * @param definition Definition of the leaf command
+   * @returns Registered commander command
+   */
   private _createCommand(target: Command, definition: IPluginCommandDefinition) {
-    const { id, label, config } = definition;
+    const { id, command, label, config } = definition;
     const description = config.description ?? label;
 
-    const command = target.command(id);
-    initializeCommand(command, description, config);
-    command.action(async (...allArgs: any[]) => this._commandAction(id, this.parseCommandArgs(allArgs)));
+    const leafCommand = target.command(command);
+    initializeCommand(leafCommand, description, config);
+    leafCommand.action(async (...allArgs: any[]) => this._commandAction(id, this.parseCommandArgs(allArgs)));
 
-    return command;
+    return leafCommand;
   }
 
+  /**
+   * Registers the command hierarchy in commander.
+   *
+   * A node with children is a group: it is registered as a command named by its
+   * `command` and its subcommands are attached to it. Leaf nodes are registered by
+   * `_createCommand`.
+   * @param nodes Roots of the hierarchy built by `buildHierarchy`
+   * @param parent Commander command the nodes are attached to; the program by default
+   * @returns Registered commander commands
+   */
   createCommands(nodes: ICommandNode[], parent?: Command): Command[] {
     const target = parent ?? this.program;
     return nodes.map((node) => {
@@ -139,7 +160,7 @@ export class CliEngine implements IEngine {
         // Group node: command container without its own action; subcommands are attached recursively.
         // `target.command(...)` already registers the group on its parent, so the returned child
         // commands must not be added to it a second time.
-        const group = target.command(node.definition.id);
+        const group = target.command(node.definition.command);
         group.description(node.definition.label);
         this.createCommands(node.children, group);
         return group;

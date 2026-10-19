@@ -94,9 +94,15 @@ export function initializeCommand(command: Command, description: string, config:
 
 /**
  * Builds the command hierarchy from the flat definition list.
- * Definitions without `parent` become roots; a definition with `parent`
- * is attached to the node with that id. A reference to an unknown parent
- * is rejected with a clear error.
+ *
+ * Nodes are keyed by `definition.id` — the identifier of the plugin definition — and a
+ * `parent` reference names the `id` of the parent node, never its `command`. The name a
+ * node has on the surface (`command`) plays no part in the hierarchy: a set command such
+ * as `board_list` is a child of `board`, while its surface name is `list`. Definitions
+ * without `parent` become roots; a reference to an unknown parent is rejected with a
+ * clear error naming the child by `id`.
+ * @param commandDefinitions Flat definitions of the discovered command plugins
+ * @returns Roots of the hierarchy, each carrying its children
  */
 export function buildHierarchy(commandDefinitions: IPluginCommandDefinition[]): ICommandNode[] {
   const nodes = new Map<string, ICommandNode>();
