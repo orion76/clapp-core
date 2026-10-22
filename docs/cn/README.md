@@ -17,7 +17,7 @@
 该软件包旨在作为 `clapp` monorepo 的一部分使用，但也可以直接安装：
 
 ```bash
-npm install @clapp/core @clapp/command @clapp/utils
+npm install @clapp/core @clapp/utils
 ```
 
 ## 使用方法
@@ -148,7 +148,7 @@ my-plugin-project/
 **`definition.ts` 示例：**
 
 ```typescript
-import { ICommandConfig, PLUGIN_COMMAND_TYPE } from '@clapp/command';
+import { ICommandConfig, PLUGIN_COMMAND_TYPE } from '@clapp/common';
 import { MyCommandPlugin } from '../../plugins/my-command-plugin.js';
 
 const myCommand: ICommandConfig = {
