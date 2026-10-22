@@ -2,7 +2,7 @@ import { injectable } from 'inversify';
 import { NodePlugin } from '@orion76/node-plugin';
 
 import { PLUGIN_FORMATTER_TYPE, type IPluginFormatterDefinitionData } from '@clapp/common';
-import type { ITableData } from '@clapp/command';
+import type { ITableData } from '@clapp/common';
 
 import { PluginFormatterBase } from '../../../formatters/formatter.base';
 import { renderTable } from './lib';

@@ -2,7 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { getPluginDefinition } from '@orion76/node-plugin';
 
-import type { IKeyValueData } from '@clapp/command';
+import type { IKeyValueData } from '@clapp/common';
 
 import { renderKeyValue } from '../../src/plugins/formatters/key-value/lib.js';
 import { KeyValueFormatterPlugin } from '../../src/plugins/formatters/key-value/key-value.plugin.js';

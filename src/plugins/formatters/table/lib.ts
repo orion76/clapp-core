@@ -1,4 +1,4 @@
-import type { ITableData, TTableCell, TTableRecordRow, TTableRow } from '@clapp/command';
+import type { ITableData, TTableCell, TTableRecordRow, TTableRow } from '@clapp/common';
 
 import { bold, dim } from '../styling';
 

@@ -45,7 +45,6 @@
     "il": "npm run install-libs"
   },
   "peerDependencies": {
-    "@clapp/command": "^0.0.3-alpha.14",
     "@clapp/common": "^0.0.1",
     "@clapp/utils": "^0.0.4",
     "commander": "^14.0.2",

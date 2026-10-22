@@ -1,4 +1,4 @@
-import type { IKeyValueData, IKeyValuePair, IKeyValueSection } from '@clapp/command';
+import type { IKeyValueData, IKeyValuePair, IKeyValueSection } from '@clapp/common';
 
 import { bold, dim } from '../styling';
 

@@ -1,4 +1,4 @@
-import type { ITableData, TTableCell, TTableRecordRow, TTableRow } from '@clapp/command';
+import type { ITableData, TTableCell, TTableRecordRow, TTableRow } from '@clapp/common';
 
 const DEFAULT_GAP = 2;
 const HEADER_SEPARATOR = '─';

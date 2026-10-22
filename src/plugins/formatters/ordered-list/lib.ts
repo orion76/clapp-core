@@ -1,4 +1,4 @@
-import type { IOrderedListData, IOrderedListItem, TListMarker } from '@clapp/command';
+import type { IOrderedListData, IOrderedListItem, TListMarker } from '@clapp/common';
 
 import { bold, dim, dimStruck, green } from '../styling';
 

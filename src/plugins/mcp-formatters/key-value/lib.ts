@@ -1,4 +1,4 @@
-import type { IKeyValueData, IKeyValuePair, IKeyValueSection } from '@clapp/command';
+import type { IKeyValueData, IKeyValuePair, IKeyValueSection } from '@clapp/common';
 
 /** Spaces between the key column and the value column. */
 const VALUE_GAP = 2;

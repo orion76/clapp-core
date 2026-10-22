@@ -2,7 +2,7 @@ import { injectable } from 'inversify';
 import { NodePlugin } from '@orion76/node-plugin';
 
 import { PLUGIN_FORMATTER_TYPE, type IPluginFormatterDefinitionData } from '@clapp/common';
-import type { IOrderedListData } from '@clapp/command';
+import type { IOrderedListData } from '@clapp/common';
 
 import { PluginFormatterBase } from '../../../formatters/formatter.base';
 import { renderOrderedList } from './lib';
