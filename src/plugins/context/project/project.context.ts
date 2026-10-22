@@ -1,49 +1,11 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 
 import { NodePlugin } from '@orion76/node-plugin';
 
 import { PLUGIN_CONTEXT_TYPE, type IPluginContext, type IPluginContextDefinition } from '@clapp/common';
-import { getProjectRoot } from '@clapp/utils';
 
 import { PluginContextBase } from '../../../context/plugin-context.base';
+import { readProjectName, resolveProjectRoot } from './lib';
 
-/**
- * Root of the context project, or `null` when there is none.
- *
- * The rule is the one of the `app-root` context (`getProjectRoot` of
- * `@clapp/utils`), but a failure is not fatal here: a working directory outside
- * the searched tree or a missing project only makes the context empty.
- *
- * @param cwd Working directory the lookup starts from
- * @param userHome Directory the lookup is bounded by
- * @returns Root of the context project, or `null`
- */
-function resolveProjectRoot(cwd: string, userHome: string): string | null {
-  try {
-    return getProjectRoot(cwd, userHome);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Reads the `name` of the `package.json` of the given project root.
- *
- * @param projectRoot Root of the context project
- * @returns Package name, or an empty string when the file is unreadable or has no `name`
- */
-function readProjectName(projectRoot: string): string {
-  try {
-    const contents = readFileSync(path.join(projectRoot, 'package.json'), 'utf8');
-    const packageJson = JSON.parse(contents) as { name?: unknown };
-    const name = packageJson.name;
-
-    return typeof name === 'string' ? name : '';
-  } catch {
-    return '';
-  }
-}
 
 /**
  * Context plugin that contributes the name of the context project — the `name` of
