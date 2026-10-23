@@ -8,15 +8,15 @@ import {
   PLUGIN_COMMAND_TYPE,
   PLUGIN_CONTEXT_TYPE,
   PLUGIN_FORMATTER_TYPE,
-  type IPluginDiscoveryConfig,
-  type IPluginSourceConfig,
-  type UPluginSourceType,
-  type UPluginTypes,
+  UPluginTypes,
 } from '@clapp/common';
 import { getProjectRoot } from '@clapp/utils';
 
 import { APP_CONFIG_DEFAULT } from '../config/config';
 import type { IAppConfig, TCliConfigOverride } from '../types';
+
+import { IPluginDiscoveryConfig, IPluginSourceConfig, UPluginSourceType } from '../types/plugin-config';
+
 
 /**
  * Source types a config may declare, in the order they are documented.

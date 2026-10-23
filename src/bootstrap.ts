@@ -2,13 +2,14 @@ import { providePluginManager } from '@orion76/node-plugin';
 import { CommanderError } from 'commander';
 import type { Container } from 'inversify';
 
-import { EVENT_BUS_TOKEN, Type, type IPluginCommand, type IPluginContext, type IPluginFormatter } from '@clapp/common';
 
 import {
+  EVENT_BUS_TOKEN,
+  IPluginContext,
   PLUGIN_COMMAND_TYPE,
   PLUGIN_CONTEXT_TYPE,
   PLUGIN_FORMATTER_TYPE,
-  type IPluginDiscoveryConfig,
+  Type,
 } from '@clapp/common';
 import { APP_CONFIG_PATH_DEFAULT } from './constants/paths';
 import {
@@ -20,11 +21,20 @@ import {
   FORMATTER_MANAGER_TOKEN,
 } from './constants/tokens';
 
+
 import { EventBus } from './events/event-bus';
 import { ClappPluginLoader, type IClappPluginLoaderConfig } from './plugin-loader';
 import { getAppConfig, resolveExitCode } from './public-api';
 import type { IEngine, IInitAppOptions } from './types';
+
 import { loggerBind, loggerCollectionBind } from './utils/logger';
+import { IPluginCommand, IPluginFormatter } from '@clapp/common';
+import { IPluginDiscoveryConfig } from './types/plugin-config';
+
+
+
+
+
 
 /**
  * Converts the source based plugin config of a type into the config of the clapp
