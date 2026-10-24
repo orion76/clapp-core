@@ -27,8 +27,10 @@
  *   PLUGIN_FORMATTER:
  *     disabled: []
  *     sources:
- *       # Patterns of the launcher itself: relative to the application root.
- *       - type: appRoot
+ *       # The built-in formatters are per-file plugin modules of `@clapp/common`
+ *       # (`packages/common/src/plugins/formatters/**`), patterns are relative to it.
+ *       - type: library
+ *         library: '@clapp/common'
  *         patterns:
  *           - src/plugins/formatters/**\/*.plugin.{js,ts}
  *         disabled: []

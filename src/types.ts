@@ -40,12 +40,6 @@ export interface IAppConfig {
   plugins: Record<UPluginTypes, IPluginDiscoveryConfig>;
   loggers: Record<ULoggerNames, ILoggerConfig>;
 }
-export interface IAppMeta {
-  cwd: string;
-  appPath: string;
-  appRoot: string;
-  userHome: string;
-}
 /**
  * Configuration override of a CLI application: the same shape as `IAppConfig`,
  * but the plugin and logger sections are optional and the plugin section is

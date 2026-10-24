@@ -19,10 +19,10 @@ import { loadConfig, resolveExitCode } from './public-api';
 import type { IEngine, IInitAppOptions } from './types';
 
 import { loggerBind, loggerCollectionBind } from './utils/logger';
-import { IPluginCommand, IPluginFormatter } from '@clapp/common';
+import { IPluginCommand, IPluginFormatter, getAppMeta, initAppMeta } from '@clapp/common';
 import { IPluginDiscoveryConfig } from './types/plugin-config';
-import { getAppMeta, initAppMeta } from './app-meta';
 import { getProjectRoot } from '@clapp/utils';
+
 
 /**
  * Converts the source based plugin config of a type into the config of the clapp
