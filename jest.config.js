@@ -17,6 +17,10 @@ export default {
   // and their scoped deps.
   transformIgnorePatterns: ['/node_modules/(?!inversify|@inversifyjs|@orion76)'],
   moduleNameMapper: {
+    // Tests compile the sources directly: map the workspace packages to `src` so a
+    // jest run does not depend on prebuilt `packages/*/dist` bundles.
+    '^@clapp/common$': '<rootDir>/../common/src/index.ts',
+    '^@clapp/utils$': '<rootDir>/../utils/src/index.ts',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
 };
