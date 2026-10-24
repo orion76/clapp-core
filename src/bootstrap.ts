@@ -2,15 +2,7 @@ import { providePluginManager } from '@orion76/node-plugin';
 import { CommanderError } from 'commander';
 import type { Container } from 'inversify';
 
-
-import {
-  EVENT_BUS_TOKEN,
-  IPluginContext,
-  PLUGIN_COMMAND_TYPE,
-  PLUGIN_CONTEXT_TYPE,
-  PLUGIN_FORMATTER_TYPE,
-  Type,
-} from '@clapp/common';
+import { EVENT_BUS_TOKEN, IPluginContext, PLUGIN_COMMAND_TYPE, PLUGIN_CONTEXT_TYPE, PLUGIN_FORMATTER_TYPE, Type } from '@clapp/common';
 import { APP_CONFIG_PATH_DEFAULT } from './constants/paths';
 import {
   APP_CONFIG_TOKEN,
@@ -21,20 +13,16 @@ import {
   FORMATTER_MANAGER_TOKEN,
 } from './constants/tokens';
 
-
 import { EventBus } from './events/event-bus';
 import { ClappPluginLoader, type IClappPluginLoaderConfig } from './plugin-loader';
-import { getAppConfig, resolveExitCode } from './public-api';
+import { loadConfig, resolveExitCode } from './public-api';
 import type { IEngine, IInitAppOptions } from './types';
 
 import { loggerBind, loggerCollectionBind } from './utils/logger';
 import { IPluginCommand, IPluginFormatter } from '@clapp/common';
 import { IPluginDiscoveryConfig } from './types/plugin-config';
-
-
-
-
-
+import { getAppMeta, initAppMeta } from './app-meta';
+import { getProjectRoot } from '@clapp/utils';
 
 /**
  * Converts the source based plugin config of a type into the config of the clapp
@@ -48,15 +36,16 @@ import { IPluginDiscoveryConfig } from './types/plugin-config';
 function createLoaderConfig(pluginConfig: IPluginDiscoveryConfig): IClappPluginLoaderConfig {
   return {
     patterns: pluginConfig.sources.flatMap((source) => source.patterns),
-    sources: pluginConfig.sources.map((source) => ({ patterns: source.patterns, disabled: source.disabled })),
-    disabled: pluginConfig.disabled,
+    sources: pluginConfig.sources.map((source) => ({ patterns: source.patterns })),
   };
 }
 
 export async function bootstrapApp(engineClass: Type<IEngine>, container: Container, options: IInitAppOptions = {}): Promise<IEngine> {
-  const { appRoot } = options;
+  initAppMeta();
+  const { cwd, userHome, appRoot } = getAppMeta();
+  const projectRoot = getProjectRoot(cwd, userHome);
   const configPath = options.configPath ?? APP_CONFIG_PATH_DEFAULT;
-  const config = await getAppConfig(configPath, appRoot);
+  const config = await loadConfig(configPath, appRoot, projectRoot);
 
   container.bind(EVENT_BUS_TOKEN).to(EventBus).inSingletonScope();
 

@@ -7,8 +7,7 @@ import type { IPluginLoaderConfig } from '@orion76/node-plugin';
 export interface IClappPluginSourceConfig {
   /** Absolute module patterns of the source, resolved against the root of the source. */
   patterns: string[];
-  /** Ids of plugin definitions that are not loaded from this source. */
-  disabled: string[];
+
 }
 
 /**
@@ -22,10 +21,6 @@ export interface IClappPluginSourceConfig {
  * valid `IPluginLoaderConfig` for the plugin manager factory.
  */
 export interface IClappPluginLoaderConfig extends IPluginLoaderConfig {
-  /** Absolute module patterns of every source, in source order. */
   patterns: string[];
-  /** Sources of the type, in source order; the disabled list is applied per source. */
   sources: IClappPluginSourceConfig[];
-  /** Ids of plugin definitions that are not loaded from any source of the type. */
-  disabled: string[];
 }

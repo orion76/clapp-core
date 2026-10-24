@@ -1,17 +1,15 @@
 import { NodePlugin } from '@orion76/node-plugin';
 
-import { PLUGIN_CONTEXT_TYPE, type IPluginContext, type IPluginContextDefinition } from '@clapp/common';
-
-import { PluginContextBase } from '../../../context/plugin-context.base';
+import { PLUGIN_CONTEXT_TYPE, PluginContextBase, type IPluginContext, type IPluginContextDefinition } from '@clapp/common';
+import { getAppMeta } from '../../../app-meta';
 
 @NodePlugin<IPluginContextDefinition<string>>({
   type: PLUGIN_CONTEXT_TYPE,
   id: 'cwd',
   label: 'App CWD',
-  dependencies: ['process'],
 })
 export class CwdContext extends PluginContextBase<string> implements IPluginContext<string, [NodeJS.Process]> {
-  getContext(process: NodeJS.Process): Promise<string> {
-    return Promise.resolve(process.cwd());
+  async getContext(): Promise<string> {
+    return getAppMeta().cwd;
   }
 }

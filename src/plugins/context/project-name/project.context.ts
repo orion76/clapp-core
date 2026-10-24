@@ -1,11 +1,9 @@
-
 import { NodePlugin } from '@orion76/node-plugin';
 
-import { PLUGIN_CONTEXT_TYPE, type IPluginContext, type IPluginContextDefinition } from '@clapp/common';
+import { PLUGIN_CONTEXT_TYPE, PluginContextBase, type IPluginContext, type IPluginContextDefinition } from '@clapp/common';
 
-import { PluginContextBase } from '../../../context/plugin-context.base';
-import { readProjectName, resolveProjectRoot } from './lib';
-
+import { resolveProjectRoot } from '@clapp/utils';
+import { readProjectName } from './lib';
 
 /**
  * Context plugin that contributes the name of the context project — the `name` of
@@ -23,12 +21,10 @@ import { readProjectName, resolveProjectRoot } from './lib';
   type: PLUGIN_CONTEXT_TYPE,
   id: 'project',
   label: 'Context project name',
-  dependencies: ['cwd', 'user-home'],
+  dependencies: ['current-project-path'],
 })
 export class ProjectContext extends PluginContextBase<string, [string, string]> implements IPluginContext<string, [string, string]> {
-  async getContext(cwd: string, userHome: string): Promise<string> {
-    const projectRoot = resolveProjectRoot(cwd, userHome);
-
+  async getContext(projectRoot: string): Promise<string> {
     if (projectRoot === null) {
       return '';
     }

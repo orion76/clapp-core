@@ -9,13 +9,11 @@ export * from './constants/tokens';
 export { CliEngine } from './engines/clapp/clapp';
 export { MCPEngine } from './engines/mcp/mcp';
 export { EventBus } from './events/event-bus';
-export type { IInitAppOptions, IAppConfig, TCliConfigOverride } from './types';
+export type { IInitAppOptions, IAppConfig, TCliConfigCustom  } from './types';
 export type { IMCPCommandInput, IMCPCommandInvoker, IMCPEntity, IMCPEntityRegistry, IMCPEntitySkip } from './engines/mcp/types';
 export * from './bootstrap';
 
-export * from './formatters';
-export * from './plugins/formatters';
-export * from './plugins/mcp-formatters';
+
 export * from './plugin-loader';
 export * from './utils';
 export * from './types';

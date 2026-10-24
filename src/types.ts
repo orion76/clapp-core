@@ -1,5 +1,6 @@
-import type { IPluginCommandDefinition, IPluginDiscoveryConfig, UPluginTypes } from '@clapp/common';
+import type { IPluginCommandDefinition, UPluginTypes } from '@clapp/common';
 import { ILoggerConfig } from '@orion76/logger';
+import { IPluginDiscoveryConfig } from './types/plugin-config';
 
 /**
  * Node of the command hierarchy built from the flat definition list.
@@ -12,7 +13,6 @@ export interface ICommandNode {
 
 export interface IInitAppOptions {
   configPath?: string;
-  appRoot?: string;
 }
 
 /**
@@ -37,20 +37,21 @@ export interface IAppConfig {
   name: string;
   description: string;
   version: string;
-  /**
-   * Discovery configuration of every plugin type: the sources its plugins come
-   * from (see `IPluginSourceConfig` in `@clapp/common`) and the disabled ids.
-   */
   plugins: Record<UPluginTypes, IPluginDiscoveryConfig>;
   loggers: Record<ULoggerNames, ILoggerConfig>;
 }
-
+export interface IAppMeta {
+  cwd: string;
+  appPath: string;
+  appRoot: string;
+  userHome: string;
+}
 /**
  * Configuration override of a CLI application: the same shape as `IAppConfig`,
  * but the plugin and logger sections are optional and the plugin section is
  * validated and completed with the defaults while the config is loaded.
  */
-export type TCliConfigOverride = Omit<IAppConfig, 'plugins' | 'loggers'> & {
+export type TCliConfigCustom = Omit<IAppConfig, 'plugins' | 'loggers'> & {
   plugins?: Record<UPluginTypes, IPluginDiscoveryConfig>;
   loggers?: Record<ULoggerNames, ILoggerConfig>;
 };
