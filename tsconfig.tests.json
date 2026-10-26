@@ -4,9 +4,22 @@
     "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "bundler",
-    "types": ["jest", "node"],
-    "allowJs": true
+    "types": [
+      "jest",
+      "node"
+    ],
+    "allowJs": true,
+    "paths": {
+      "@clapp/common": [
+        "../common/src/public-api.ts"
+      ]
+    }
   },
-  "include": ["tests/**/*.ts"],
-  "exclude": ["dist/**", "node_modules/**"]
+  "include": [
+    "tests/**/*.ts"
+  ],
+  "exclude": [
+    "dist/**",
+    "node_modules/**"
+  ]
 }

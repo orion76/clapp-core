@@ -3,12 +3,10 @@ import 'reflect-metadata';
 
 import { Container } from 'inversify';
 
-import type { IPluginContext, IPluginContextDefinition } from '@clapp/common';
-import { PLUGIN_CONTEXT_TYPE } from '@clapp/common';
-import type { IPluginManager } from '@orion76/node-plugin';
+import { AppContext, CONTEXT_MANAGER_TOKEN, IPluginContext, IPluginContextDefinition, PLUGIN_CONTEXT_TYPE } from '@clapp/common';
+import type { IPluginManager } from '@orion76/plugin';
 
-import { AppContext } from '../../src/context/app-context.js';
-import { CONTEXT_MANAGER_TOKEN } from '../../src/constants/tokens.js';
+
 
 type ContextValue = { marker: string };
 

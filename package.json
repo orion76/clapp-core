@@ -42,7 +42,9 @@
     "test": "echo tests for clapp!",
     "test:jest": "jest",
     "install-libs": "./scripts/install.sh",
-    "il": "npm run install-libs"
+    "il": "npm run install-libs",
+    "tych": "tsc --noEmit"
+
   },
   "peerDependencies": {
     "@clapp/common": "^0.0.1",

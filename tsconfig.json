@@ -1,9 +1,31 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "@clapp/common": [
+        "../common/src/public-api.ts"
+      ],
+      // "@clapp/core": [
+      //   "../core/src/public-api.ts"
+      // ],
+      "@clapp/utils": [
+        "../utils/src/public-api.ts"
+      ],
+      "@orion76/logger": [
+        "../../libraries/logger/src/public-api.ts"
+      ],
+      "@orion76/plugin": [
+        "../../libraries/plugin/src/public-api.ts"
+      ],
+      "@orion76/node-plugin": [
+        "../../libraries/node-plugin/src/public-api.ts"
+      ],
+    }
   },
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts","tests/**/*.ts",
   ],
 }
