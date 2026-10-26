@@ -1,6 +1,7 @@
+import { IAppConfig } from '@clapp/common';
 import { McpServer, type Implementation } from '@modelcontextprotocol/server';
 
-import type { IAppConfig } from '../../types';
+
 
 /**
  * Builds the server info the engine reports to a client during initialization.

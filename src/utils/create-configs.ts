@@ -1,16 +1,15 @@
-import { PLUGIN_COMMAND_TYPE, PLUGIN_CONTEXT_TYPE, PLUGIN_FORMATTER_TYPE, UPluginTypes } from '@clapp/common';
+import { IAppConfig, PLUGIN_COMMAND_ARGUMENT_TYPE, PLUGIN_COMMAND_TYPE, PLUGIN_CONTEXT_TYPE, PLUGIN_FORMATTER_TYPE, TCliConfigCustom, UPluginTypes } from '@clapp/common';
 import { existsSync, realpathSync } from 'fs';
 import { resolve } from 'node:path';
 import { join } from 'path';
 import { APP_CONFIG_DEFAULT } from '../config/config';
-import { IAppConfig, TCliConfigCustom } from '../types';
+
 import {
   IPluginDiscoveryConfig,
-  IPluginSourceConfig,
   IPluginSourceLibraryConfig,
   UPluginSourceConfig,
-  UPluginSourceType,
-} from '../types/plugin-config';
+  UPluginSourceType
+} from '../../../common/src/types/plugin-config';
 import { resolveFilePathPatterns } from './config';
 /**
  * Plugin types the configuration always carries.
@@ -56,6 +55,7 @@ function resolveConfigPatterns(config: IAppConfig, appRoot: string, projectRoot?
     ...config,
     plugins: {
       [PLUGIN_COMMAND_TYPE]: resolveTypePatterns(config.plugins[PLUGIN_COMMAND_TYPE], appRoot, projectRoot),
+      [PLUGIN_COMMAND_ARGUMENT_TYPE]: resolveTypePatterns(config.plugins[PLUGIN_COMMAND_ARGUMENT_TYPE], appRoot, projectRoot),
       [PLUGIN_CONTEXT_TYPE]: resolveTypePatterns(config.plugins[PLUGIN_CONTEXT_TYPE], appRoot, projectRoot),
       [PLUGIN_FORMATTER_TYPE]: resolveTypePatterns(config.plugins[PLUGIN_FORMATTER_TYPE], appRoot, projectRoot),
     },

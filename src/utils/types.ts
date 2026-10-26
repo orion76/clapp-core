@@ -1,0 +1,1 @@
+export type TAppRuntime = 'node' | 'tsx' | 'bun' | 'deno';

@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 
 import { load as loadYaml } from 'js-yaml';
 
-import type { IAppConfig, TCliConfigCustom } from '../types';
+
+import { IAppConfig, TCliConfigCustom } from '@clapp/common';
 import { createAppConfig } from './create-configs';
 
 /**

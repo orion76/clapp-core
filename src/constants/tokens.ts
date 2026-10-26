@@ -1,22 +1,11 @@
-import type { IPluginManager } from '@orion76/node-plugin';
 import type { ServiceIdentifier } from 'inversify';
 
-import type { IClapp, IPluginCommand, IPluginContext, IPluginFormatter } from '@clapp/common';
+import type { IAppConfig, IClapp, IEngine } from '@clapp/common';
 import { ILoggerCollection, TLogger } from '@orion76/logger';
-import { IAppConfig, IEngine, ULoggerNames } from '../types';
 
-export const LOGGER_COLLECTION_TOKEN: ServiceIdentifier<ILoggerCollection<ULoggerNames>> = Symbol('LOGGER_COLLECTION_TOKEN');
 
-/**
- * Injection token of the command plugin manager registered by `Clapp`.
- */
-export const COMMAND_MANAGER_TOKEN: ServiceIdentifier<IPluginManager<IPluginCommand>> = Symbol('COMMAND_MANAGER');
-export const CONTEXT_MANAGER_TOKEN: ServiceIdentifier<IPluginManager<IPluginContext>> = Symbol('CONTEXT_MANAGER_');
+export const LOGGER_COLLECTION_TOKEN: ServiceIdentifier<ILoggerCollection> = Symbol('LOGGER_COLLECTION_TOKEN');
 
-/**
- * Injection token of the formatter plugin manager registered by `Clapp`.
- */
-export const FORMATTER_MANAGER_TOKEN: ServiceIdentifier<IPluginManager<IPluginFormatter>> = Symbol('FORMATTER_MANAGER');
 
 /**
  * Injection token of the resolved CLI configuration used by `Clapp`.

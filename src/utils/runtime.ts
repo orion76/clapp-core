@@ -1,4 +1,4 @@
-import { TAppRuntime } from "../types";
+import { TAppRuntime } from "@clapp/common";
 
 
 /**

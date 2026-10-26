@@ -2,27 +2,38 @@ import { providePluginManager } from '@orion76/node-plugin';
 import { CommanderError } from 'commander';
 import type { Container } from 'inversify';
 
-import { EVENT_BUS_TOKEN, IPluginContext, PLUGIN_COMMAND_TYPE, PLUGIN_CONTEXT_TYPE, PLUGIN_FORMATTER_TYPE, Type } from '@clapp/common';
-import { APP_CONFIG_PATH_DEFAULT } from './constants/paths';
 import {
-  APP_CONFIG_TOKEN,
-  CLAPP_LOGGER_TOKEN,
+  COMMAND_ARGUMENT_MANAGER_TOKEN,
   COMMAND_MANAGER_TOKEN,
   CONTEXT_MANAGER_TOKEN,
-  ENGINE_TOKEN,
+  EVENT_BUS_TOKEN,
   FORMATTER_MANAGER_TOKEN,
-} from './constants/tokens';
+  IEngine,
+  IInitAppOptions,
+  IPluginCommand,
+  IPluginCommandArgument,
+  IPluginContext,
+  IPluginDiscoveryConfig,
+  IPluginFormatter,
+  PLUGIN_COMMAND_ARGUMENT_TYPE,
+  PLUGIN_COMMAND_TYPE,
+  PLUGIN_CONTEXT_TYPE,
+  PLUGIN_FORMATTER_TYPE,
+  Type,
+  getAppMeta,
+  initAppMeta,
+} from '@clapp/common';
+import { APP_CONFIG_PATH_DEFAULT } from './constants/paths';
+import { APP_CONFIG_TOKEN, CLAPP_LOGGER_TOKEN, ENGINE_TOKEN } from './constants/tokens';
 
-import { EventBus } from './events/event-bus';
+import { EventBus } from '../../common/src/events/event-bus';
 import { ClappPluginLoader, type IClappPluginLoaderConfig } from './plugin-loader';
-import { loadConfig, resolveExitCode } from './public-api';
-import type { IEngine, IInitAppOptions } from './types';
+import { loadConfig } from './public-api';
 
-import { loggerBind, loggerCollectionBind } from './utils/logger';
-import { IPluginCommand, IPluginFormatter, getAppMeta, initAppMeta } from '@clapp/common';
-import { IPluginDiscoveryConfig } from './types/plugin-config';
 import { getProjectRoot } from '@clapp/utils';
 
+import { resolveExitCode } from '../../common/src/plugin-types/command/utils';
+import { loggerBind, loggerCollectionBind } from './utils/logger';
 
 /**
  * Converts the source based plugin config of a type into the config of the clapp
@@ -60,6 +71,13 @@ export async function bootstrapApp(engineClass: Type<IEngine>, container: Contai
     PLUGIN_COMMAND_TYPE,
     COMMAND_MANAGER_TOKEN,
     { config: createLoaderConfig(config.plugins[PLUGIN_COMMAND_TYPE]), pluginLoaderCls: ClappPluginLoader },
+    container,
+  );
+
+  providePluginManager<IPluginCommandArgument>(
+    PLUGIN_COMMAND_ARGUMENT_TYPE,
+    COMMAND_ARGUMENT_MANAGER_TOKEN,
+    { config: createLoaderConfig(config.plugins[PLUGIN_COMMAND_ARGUMENT_TYPE]), pluginLoaderCls: ClappPluginLoader },
     container,
   );
 
