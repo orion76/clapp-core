@@ -40,15 +40,15 @@
     "pack": "npm pack",
     "prepublishOnly": "npm run build",
     "test": "echo tests for clapp!",
-    "test:jest": "jest",
+    "test:jest": "nx jest:test",
     "install-libs": "./scripts/install.sh",
     "il": "npm run install-libs",
-    "tych": "tsc --noEmit"
-
+    "typecheck": "tsc --noEmit",
+    "improt-debug": "tsc /home/pasha/my/clapp/libraries/node-plugin/src/plugin-loader/types.ts --noEmit --traceResolution"
   },
   "peerDependencies": {
-    "@clapp/common": "^0.0.1",
-    "@clapp/utils": "^0.0.4",
+    "@clapp/common": "workspace:*",
+    "@clapp/utils": "workspace:*",
     "commander": "^14.0.2",
     "inversify": "^8.2.3",
     "reflect-metadata": "^0.2.2"
@@ -69,8 +69,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.3.1",
-    "@opentf/cli-styles": "^0.15.0",
-    "@orion76/node-plugin": "^0.3.0",
+
+    "@orion76/node-plugin": "workspace:*",
     "js-yaml": "^4.1.0",
     "reflect-metadata": "^0.2.2",
     "tslib": "^2.4.0",

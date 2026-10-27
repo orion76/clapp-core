@@ -36,4 +36,4 @@ const container = new Container();
  * chooses `CliEngine`. Nothing is printed here either: under the stdio transport stdout
  * carries the protocol stream, so the engine is the only writer, and only to stderr.
  */
-await run(MCPEngine, container, { appRoot, configPath });
+await run(MCPEngine, container, { configPath });

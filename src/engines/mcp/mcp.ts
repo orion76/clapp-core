@@ -5,6 +5,7 @@ import type { IPluginManager } from '@orion76/node-plugin';
 import { inject, injectable } from 'inversify';
 
 import {
+  buildHierarchy,
   COMMAND_MANAGER_TOKEN,
   EVENT_BUS_TOKEN,
   FORMATTER_MANAGER_TOKEN,
@@ -20,7 +21,8 @@ import {
 
 
 
-import { buildHierarchy } from '../../../../common/src/plugin-types/command/utils';
+
+
 import { APP_CONFIG_TOKEN, CLAPP_LOGGER_TOKEN } from '../../public-api';
 import { toErrorMessage } from './error-message';
 import { registerPrompts } from './register-prompts';
