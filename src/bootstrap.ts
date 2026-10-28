@@ -1,11 +1,13 @@
 import { providePluginManager } from '@orion76/node-plugin';
 import { CommanderError } from 'commander';
-import type { Container } from 'inversify';
+import type { Container, ServiceIdentifier } from 'inversify';
 
 import {
+  AppContext,
   COMMAND_ARGUMENT_MANAGER_TOKEN,
   COMMAND_MANAGER_TOKEN,
   CONTEXT_MANAGER_TOKEN,
+  CONTEXT_SERVICE_TOKEN,
   EVENT_BUS_TOKEN,
   EventBus,
   FORMATTER_MANAGER_TOKEN,
@@ -35,6 +37,7 @@ import { getProjectRoot } from '@clapp/utils';
 
 import { loggerBind, loggerCollectionBind } from './utils/logger';
 
+
 /**
  * Converts the source based plugin config of a type into the config of the clapp
  * plugin loader: the patterns of every source (already resolved against the root
@@ -51,6 +54,7 @@ function createLoaderConfig(pluginConfig: IPluginDiscoveryConfig): IClappPluginL
   };
 }
 
+
 export async function bootstrapApp(engineClass: Type<IEngine>, container: Container, options: IInitAppOptions = {}): Promise<IEngine> {
   initAppMeta();
   const { cwd, userHome, appRoot } = getAppMeta();
@@ -60,6 +64,7 @@ export async function bootstrapApp(engineClass: Type<IEngine>, container: Contai
 
   container.bind(EVENT_BUS_TOKEN).to(EventBus).inSingletonScope();
 
+  container.bind(CONTEXT_SERVICE_TOKEN).to(AppContext);
   loggerCollectionBind(container);
 
   container.bind(APP_CONFIG_TOKEN).toConstantValue(config);

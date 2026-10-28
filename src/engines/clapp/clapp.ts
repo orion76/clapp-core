@@ -8,7 +8,6 @@ import {
   FORMATTER_MANAGER_TOKEN,
   IAppConfig,
   ICommandService,
-  IContextService,
   type ICommandResult,
   type IEngine,
   type IPluginCommandDefinition,
@@ -17,6 +16,7 @@ import {
 
 import { TLogger, UConsoleLevels } from '@orion76/logger';
 
+import { IContextService } from '../../../../common/src/plugin-types/context/types';
 import { APP_CONFIG_TOKEN, CLAPP_LOGGER_TOKEN } from '../../public-api';
 
 
