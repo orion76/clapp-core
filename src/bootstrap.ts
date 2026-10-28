@@ -7,6 +7,7 @@ import {
   COMMAND_MANAGER_TOKEN,
   CONTEXT_MANAGER_TOKEN,
   EVENT_BUS_TOKEN,
+  EventBus,
   FORMATTER_MANAGER_TOKEN,
   IEngine,
   IInitAppOptions,
@@ -22,17 +23,16 @@ import {
   Type,
   getAppMeta,
   initAppMeta,
+  resolveExitCode,
 } from '@clapp/common';
 import { APP_CONFIG_PATH_DEFAULT } from './constants/paths';
 import { APP_CONFIG_TOKEN, CLAPP_LOGGER_TOKEN, ENGINE_TOKEN } from './constants/tokens';
 
-import { EventBus } from '../../common/src/events/event-bus';
 import { ClappPluginLoader, type IClappPluginLoaderConfig } from './plugin-loader';
 import { loadConfig } from './public-api';
 
 import { getProjectRoot } from '@clapp/utils';
 
-import { resolveExitCode } from '../../common/src/plugin-types/command/utils';
 import { loggerBind, loggerCollectionBind } from './utils/logger';
 
 /**

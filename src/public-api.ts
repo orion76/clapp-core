@@ -5,7 +5,7 @@ import 'reflect-metadata';
 // classes are defined — that happens only after everything the entry point imported before
 // the engines is evaluated, so an engine would otherwise read a token in its temporal dead
 // zone (`Cannot access 'CLAPP_LOGGER_TOKEN' before initialization`).
-export { EventBus } from '../../common/src/events/event-bus';
+export { EventBus } from '@clapp/common';
 export * from './constants/tokens';
 export { CliEngine } from './engines/clapp/clapp';
 export { MCPEngine } from './engines/mcp/mcp';

@@ -14,8 +14,9 @@
   },
   "exports": {
     ".": {
-      "default": "./dist/clapp-core.js",
-      "types": "./dist/clapp-core.d.ts"
+      "development": "./src/public-api.ts",
+      "types": "./dist/clapp-core.d.ts",
+      "default": "./dist/clapp-core.js"
     }
   },
   "keywords": [

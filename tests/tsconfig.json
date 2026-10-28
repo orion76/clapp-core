@@ -14,4 +14,10 @@
   "include": [
     "**/*.ts"
   ],
+  // The root tsconfig excludes `**\/tests/**`; without an override that pattern
+  // also excludes this project's own files, so TypeScript reports "No inputs".
+  "exclude": [
+    "node_modules/**",
+    "dist/**"
+  ],
 }

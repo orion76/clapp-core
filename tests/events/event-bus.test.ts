@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import type { IClappLifecycleMap, ILifecycle } from '@clapp/common';
-import { EventBus } from '../../src/events/event-bus.js';
+import { EventBus } from '@clapp/common';
 
 /**
  * Extended lifecycle map used by the bus tests. It keeps every built-in hook and
