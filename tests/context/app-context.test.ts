@@ -3,15 +3,42 @@ import 'reflect-metadata';
 
 import { Container } from 'inversify';
 
-import { AppContext, CONTEXT_MANAGER_TOKEN, IPluginContext, IPluginContextDefinition, PLUGIN_CONTEXT_TYPE } from '@clapp/common';
+import {
+  AppContext,
+  CONTEXT_MANAGER_TOKEN,
+  contextToken,
+  IContextService,
+  IPluginContext,
+  IPluginContextDefinition,
+  PLUGIN_CONTEXT_TYPE,
+  USER_HOME,
+} from '@clapp/common';
 import type { IPluginManager } from '@orion76/plugin';
 
 
 
 type ContextValue = { marker: string };
 
+/**
+ * Branded mock tokens: their runtime value is a plain id string (the phantom
+ * brand carries `ContextValue`), so the mock manager can be keyed by plain ids.
+ */
+const MOCK_APP_ROOT = contextToken<ContextValue>('app-root');
+const MOCK_CWD = contextToken<ContextValue>('cwd');
+const MOCK_USER_HOME = contextToken<ContextValue>('user-home');
+const MOCK_PROCESS = contextToken<ContextValue>('process');
+const MOCK_BOOM = contextToken<ContextValue>('boom');
+
+// --- Type-level locks (never executed) ---------------------------------------
+declare const _svc: IContextService;
+// get(APP_ROOT-style token) resolves to the token value type without explicit generic.
+const _userHomeValue: Promise<string> = _svc.get(USER_HOME);
+// A plain string is NOT a valid token (branded `InjectableIdentifier`).
+// @ts-expect-error plain string is not assignable to InjectableIdentifier<string>
+const _plainStringValue = _svc.get('user-home');
+
 interface IMockContext<T> {
-  plugin: IPluginContext<T, unknown[]>;
+  plugin: IPluginContext<T>;
   calls: () => number;
   received: () => unknown[];
 }
@@ -23,11 +50,11 @@ interface IMockContext<T> {
 function createMockContext<T = ContextValue>(id: string, value: T, dependencies?: string[]): IMockContext<T> {
   let callCount = 0;
   let receivedArgs: unknown[] = [];
-  const plugin: IPluginContext<T, unknown[]> = {
+  const plugin: IPluginContext<T> = {
     id,
     label: id,
     type: PLUGIN_CONTEXT_TYPE,
-    definition: { type: PLUGIN_CONTEXT_TYPE, id, label: id, dependencies } as IPluginContextDefinition<T>,
+    definition: { type: PLUGIN_CONTEXT_TYPE, id, label: id, dependencies } as IPluginContextDefinition,
     getContext: async (...received: unknown[]) => {
       callCount += 1;
       receivedArgs = received;
@@ -76,7 +103,7 @@ describe('AppContext', () => {
     });
     const appContext = createAppContext(manager);
 
-    const result = await appContext.get<ContextValue>('app-root');
+    const result = await appContext.get(MOCK_APP_ROOT);
 
     expect(result).toEqual({ marker: 'app-root' });
     // `app-root` receives [cwdValue, userHomeValue] in dependencies order.
@@ -98,8 +125,8 @@ describe('AppContext', () => {
     });
     const appContext = createAppContext(manager);
 
-    const first = await appContext.get<ContextValue>('app-root');
-    const second = await appContext.get<ContextValue>('app-root');
+    const first = await appContext.get(MOCK_APP_ROOT);
+    const second = await appContext.get(MOCK_APP_ROOT);
 
     expect(second).toBe(first);
     expect(processCtx.calls()).toBe(1);
@@ -112,15 +139,15 @@ describe('AppContext', () => {
     const manager = createMockManager({ process: processCtx.plugin });
     const appContext = createAppContext(manager);
 
-    const first = await appContext.get<ContextValue>('process');
-    const second = await appContext.get<ContextValue>('process');
+    const first = await appContext.get(MOCK_PROCESS);
+    const second = await appContext.get(MOCK_PROCESS);
 
     expect(second).toBe(first);
     expect(processCtx.calls()).toBe(1);
   });
 
   it('rethrows context getContext failures', async () => {
-    const failing: IPluginContext<never, unknown[]> = {
+    const failing: IPluginContext<never> = {
       id: 'boom',
       label: 'boom',
       type: PLUGIN_CONTEXT_TYPE,
@@ -132,7 +159,7 @@ describe('AppContext', () => {
     const manager = createMockManager({ boom: failing });
     const appContext = createAppContext(manager);
 
-    await expect(appContext.get('boom')).rejects.toThrow('boom');
+    await expect(appContext.get(MOCK_BOOM)).rejects.toThrow('boom');
   });
 });
 
