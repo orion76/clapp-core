@@ -1,178 +1,137 @@
+> ⚠️ **Work in progress.** This package is under active development. A release is expected soon, but it is **not production-ready** yet: the API may change without notice. Do not use it in production.
+
+> ⚠️ **В разработке.** Пакет ещё не готов к релизу: релиз ожидается в ближайшее время, API может меняться. Использовать в продакшне пока нельзя.
+
 # @clapp/core
 
-[![npm version](https://img.shields.io/npm/v/@clapp/core.svg)](https://www.npmjs.com/package/@clapp/core)
-
-[Русский](./docs/ru/README.md) | [简体中文](./docs/cn/README.md)
-
-The core CLI engine for the `clapp` framework. This package provides a powerful and extensible command-line application framework for Node.js, built with TypeScript, Commander.js, and a dynamic plugin system.
+The engine of the `clapp` CLI framework: it boots an application from a YAML config, discovers command, context and formatter plugins, and runs them either as a commander-based CLI or as an MCP server. It is a part of the [`orion76/clapp`](https://github.com/orion76/clapp) monorepo and builds on `@clapp/common` (contracts), `@clapp/utils` (helpers), `@orion76/node-plugin` and `inversify`.
 
 ## Features
 
-- **Extensible Plugin System**: Dynamically discovers and loads commands from specified project directories.
-- **TypeScript First**: Built entirely in TypeScript with full type support.
-- **ESM Native**: Uses modern ES Modules with dynamic `import()` for loading plugins.
-- **Commander.js Based**: Leverages the power and flexibility of Commander.js for command parsing.
-- **Monorepo Ready**: Designed to work seamlessly in a monorepo environment.
+- **Application bootstrap** — `bootstrapApp()` / `run()` build the application on the `inversify` container you pass, load the config, register a plugin manager per plugin type, initialize the engine and run it; a failed run is turned into a process exit code (`resolveExitCode`) and reported once.
+- **`CliEngine`** — a commander program built from the command hierarchy of the plugin definitions: group nodes become command groups, leaf nodes become executable commands.
+- **`MCPEngine` and the `clapp-mcp` bin** — the same commands exposed over stdio as MCP tools, resources and prompts; the surface follows the `kind` of each command definition.
+- **Plugin discovery** on `@orion76/node-plugin` + `inversify` — every plugin type is described by *sources* (`appRoot`, `library`, `project`), each resolved against its own root; `ClappPluginLoader` matches the glob patterns of every source and rejects a definition whose type does not belong to the manager or whose id is already taken.
+- **YAML configuration** — `clapp.config.yml` is merged over the defaults and its patterns are resolved against the root of their source (`loadConfig`, `createAppConfig`, `mergePlugins`); `APP_CONFIG_TOKEN` injects the resolved `IAppConfig`.
+- **Formatter pipeline** — a command declares `formatter`, the engine resolves that plugin and renders the result data; the text goes to stdout in the CLI and is returned as the content of an MCP entity. The built-in `table`, `ordered-list` and `key-value` implementations ship in `@clapp/common`.
+- **Lifecycle hooks** — the shared `EventBus` (re-exported from `@clapp/common`) runs `command:start`, `command:arguments`, `command:run`, `command:end` and `command:error` listeners as a pipeline around every command.
+- **Lazy TypeScript plugin loading** — `ensureTsLoader()` registers the `tsx` loader on demand, so plugins may be shipped as `.ts` while JavaScript-only applications pay nothing for it.
 
 ## Installation
 
-This package is intended to be used as part of the `clapp` monorepo, but it can also be installed directly:
+The package is not published to npm yet, so `npm install @clapp/core` does not resolve until the first release. Until then it is consumed as a workspace package of the monorepo:
 
 ```bash
-npm install @clapp/core @clapp/command @clapp/utils
+npm install @clapp/core @clapp/common @clapp/utils
 ```
 
 ## Usage
 
-To create your own CLI application using this framework, create an entry point file (e.g., `my-cli.ts`) and configure the `Clapp` instance.
+### Application entry point
 
-**Example `my-cli.ts`:**
+```ts
+#!/usr/bin/env node
+import 'reflect-metadata';
 
-```typescript
-#!/usr/bin/env tsx
+import { CliEngine, run } from '@clapp/core';
+import { Container } from 'inversify';
 
-import { CLIConfig, Clapp } from '@clapp/core';
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+const container = new Container();
 
-// Get current directory in ESM
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// Get version from your project's package.json
-const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf8'));
-
-// CLI application configuration
-const config: CLIConfig = {
-  name: 'my-cli',
-  description: 'A custom CLI built with @clapp/core',
-  version: packageJson.version,
-  // List of paths where your command plugins are located
-  projects: ['/path/to/your/plugins-project'],
-  commandsDirectory: 'src/commands',
-  commandFindFunc: (fileName: string) => fileName.endsWith('/definition.ts')
-};
-
-// Create and run the CLI application
-(async () => {
-  try {
-    const app = await Clapp.create(config);
-    await app.run(process.argv);
-  } catch (error) {
-    console.error('Application startup error:', error);
-    process.exit(1);
-  }
-})();
+await run(CliEngine, container, { configPath: 'clapp.config.yml' });
 ```
 
-### Configuration (`CLIConfig`)
+`run()` bootstraps the application and runs it with `process.argv`; use `bootstrapApp()` instead when the engine is needed directly (`await app.run(argv)`). The application root is derived from the entry script (the nearest `package.json` above it) and is the base of the `appRoot` plugin source.
 
-- `name`: The name of your CLI application.
-- `description`: A short description.
-- `version`: The version of your application.
-- `projects`: An array of absolute paths to projects containing command plugins.
-- `commandsDirectory`: The subdirectory within each project where commands are located (e.g., `src/commands`).
-- `commandFindFunc`: A function that returns `true` if a file is a command definition file.
+### Configuration
 
-## Making the CLI Executable Globally
-
-To run your CLI application from anywhere in your terminal, you need to make it globally available. This involves two main steps: making the entry script executable and linking it to a directory in your system's `PATH`.
-
-### 1. Add a Shebang to Your Entry File
-
-The first step is to tell the operating system *how* to execute your script. You do this by adding a "shebang" line at the very top of your main entry file (e.g., `my-cli.ts`).
-
-The shebang `#!/usr/bin/env tsx` tells the system to use the `tsx` interpreter to run the file. `tsx` is a tool that allows you to execute TypeScript files directly without pre-compiling them to JavaScript.
-
-Your entry file should look like this:
-
-```typescript
-#!/usr/bin/env tsx
-
-import { CLIConfig, Clapp } from '@clapp/core';
-// ... rest of your code
+```yaml
+name: my-cli
+description: A custom CLI built with @clapp/core
+version: 0.1.0
+plugins:
+  PLUGIN_COMMAND:
+    sources:
+      # Patterns are relative to the application root.
+      - type: appRoot
+        patterns:
+          - plugins/commands/**/*.plugin.{js,ts}
+      # Patterns are relative to the directory of the named package.
+      - type: library
+        library: '@clapp/ai-workflow-plugins'
+        patterns:
+          - src/plugins/commands/**/*.plugin.{js,ts}
+  PLUGIN_FORMATTER:
+    sources:
+      - type: library
+        library: '@clapp/common'
+        patterns:
+          - src/plugins/formatters/**/*.plugin.{js,ts}
 ```
 
-**Note:** For the `#!/usr/bin/env tsx` shebang to work, you must have `tsx` installed globally on your system. If you haven't already, you can install it with npm:
+The third source type, `project`, resolves its patterns against the root of the project the launcher runs in (the nearest `package.json` above the working directory) and is empty when there is no project.
 
-```bash
-npm install -g tsx
-```
+### Plugin development
 
-After adding the shebang, you need to make the script executable by running the following command in your terminal:
+A command is a `PLUGIN_COMMAND` plugin: a class decorated with `@NodePlugin` that carries the definition and extends `PluginCommandBase`. The loader finds it by the glob patterns of the config, so the file has to live under one of the declared source directories (for a project, `plugins/commands/**/*.plugin.ts`).
 
-```bash
-chmod +x /path/to/your/my-cli.ts
-```
+```ts
+import { NodePlugin } from '@orion76/node-plugin';
+import { injectable } from 'inversify';
 
-### 2. Create a Symbolic Link
+import {
+  COMMAND_KIND_TOOL,
+  PLUGIN_COMMAND_TYPE,
+  PluginCommandBase,
+  type ICommandResult,
+  type IPluginCommandDefinitionData,
+} from '@clapp/common';
 
-Now that your script is executable, you can make it accessible from any directory by creating a symbolic link (symlink) to it in a directory that is part of your system's `PATH`. A common directory for this on macOS and Linux is `/usr/local/bin`.
-
-A symbolic link is like a shortcut to your file.
-
-To create the symlink, use the `ln -s` command. You'll likely need `sudo` for this, as `/usr/local/bin` is a system directory.
-
-```bash
-sudo ln -s /path/to/your/my-cli.ts /usr/local/bin/my-cli
-```
-
-Let's break down this command:
-*   `sudo`: Executes the command with administrator privileges.
-*   `ln -s`: The command to create a symbolic link.
-*   `/path/to/your/my-cli.ts`: The absolute path to your executable entry script.
-*   `/usr/local/bin/my-cli`: The location and name of the link you are creating. This is the command you will type in the terminal.
-
-After completing these steps, you can open a new terminal session and run your application from anywhere by simply typing its new name:
-
-```bash
-my-cli --version
-my-cli my-command --my-option "hello world"
-```
-
-## Plugin Development
-
-A plugin is a self-contained command. The CLI engine discovers plugins by searching for `definition.ts` files within the configured project paths.
-
-A typical plugin structure:
-
-```
-my-plugin-project/
-└── src/
-    ├── commands/
-    │   └── my-command/
-    │       └── definition.ts  // Command definition
-    └── plugins/
-        └── my-command-plugin.ts // Plugin logic
-```
-
-**Example `definition.ts`:**
-
-```typescript
-import { ICommandConfig, PLUGIN_COMMAND_TYPE } from '@clapp/command';
-import { MyCommandPlugin } from '../../plugins/my-command-plugin.js';
-
-const myCommand: ICommandConfig = {
+@NodePlugin<IPluginCommandDefinitionData>({
   type: PLUGIN_COMMAND_TYPE,
-  id: 'my-command',
-  label: 'A short label for my command',
-  description: 'This is my custom command',
-  pluginClass: MyCommandPlugin,
-  options: [
-    {
-      long: 'my-option',
-      description: 'A custom option for the command',
-      type: 'string',
-      required: true
-    }
-  ]
-};
-
-export default myCommand;
+  kind: COMMAND_KIND_TOOL,
+  id: 'greet',
+  command: 'greet',
+  label: 'Greet the user',
+  formatter: 'ordered-list',
+  config: {
+    description: 'Print a greeting',
+    arguments: [{ name: 'name', description: 'Who to greet', required: true }],
+  },
+})
+@injectable()
+export class GreetCommandPlugin extends PluginCommandBase<{ name: string }> {
+  async action(args: { name: string }): Promise<ICommandResult> {
+    return { success: true, data: { title: `Hello, ${args.name}!`, items: ['Say hello', 'Get to work'] } };
+  }
+}
 ```
+
+A definition carries `type`, `kind` (`tool` | `resource` | `prompt` | `group`), a unique `id`, the `command` name and its optional `parent` for a subcommand, a `label`, an optional `formatter` and the `config` with `arguments` and `options`. An `MCPEngine` host exposes only leaf commands that declare a formatter; anything else is reported to stderr instead of silently disappearing.
+
+### Running inside the monorepo
+
+```bash
+npm run build:core      # build the package
+npm run typecheck -w @clapp/core
+npm run start:ai        # the CLI host of the monorepo
+npm run start:ai-mcp    # the MCP host of the monorepo
+```
+
+## Related packages
+
+| Package                                                                     | Repository                                                                               |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| [`@clapp/common`](https://www.npmjs.com/package/@clapp/common)               | [`orion76/clapp-common`](https://github.com/orion76/clapp-common)                         |
+| [`@clapp/utils`](https://www.npmjs.com/package/@clapp/utils)                 | [`orion76/clapp-utils`](https://github.com/orion76/clapp-utils)                           |
+| [`@clapp/ai-workflow-plugins`](https://www.npmjs.com/package/@clapp/ai-workflow-plugins) | [`orion76/clapp-ai-workflow-plugins`](https://github.com/orion76/clapp-ai-workflow-plugins) |
+| [`@clapp/ai-workflow-cli`](https://www.npmjs.com/package/@clapp/ai-workflow-cli) | [`orion76/clapp-ai-workflow-cli`](https://github.com/orion76/clapp-ai-workflow-cli)       |
+| [`@clapp/ai-workflow-mcp`](https://www.npmjs.com/package/@clapp/ai-workflow-mcp) | [`orion76/clapp-ai-workflow-mcp`](https://github.com/orion76/clapp-ai-workflow-mcp)       |
+
+## Русский
+
+`@clapp/core` — движок фреймворка `clapp`: он поднимает приложение из YAML-конфига, находит плагины команд, контекстов и форматтеров и запускает их либо как CLI на commander, либо как MCP-сервер. Пакет собирает DI-контейнер на `inversify` и менеджеры плагинов на `@orion76/node-plugin`, применяет форматтеры к результатам команд и проводит события жизненного цикла через общую шину. Пакет находится в активной разработке и ещё не опубликован в npm. Релиз ожидается в ближайшее время, но API может меняться без предупреждения. Использовать в продакшне пока нельзя.
 
 ## License
 
 MIT
-
-
