@@ -2,6 +2,8 @@
 
 > ⚠️ **В разработке.** Пакет ещё не готов к релизу: релиз ожидается в ближайшее время, API может меняться. Использовать в продакшне пока нельзя.
 
+**English** | [Русский](./docs/ru/README.md)
+
 # @clapp/core
 
 The engine of the `clapp` CLI framework: it boots an application from a YAML config, discovers command, context and formatter plugins, and runs them either as a commander-based CLI or as an MCP server. It is a part of the [`orion76/clapp`](https://github.com/orion76/clapp) monorepo and builds on `@clapp/common` (contracts), `@clapp/utils` (helpers), `@orion76/node-plugin` and `inversify`.
@@ -127,10 +129,6 @@ npm run start:ai-mcp    # the MCP host of the monorepo
 | [`@clapp/ai-workflow-plugins`](https://www.npmjs.com/package/@clapp/ai-workflow-plugins) | [`orion76/clapp-ai-workflow-plugins`](https://github.com/orion76/clapp-ai-workflow-plugins) |
 | [`@clapp/ai-workflow-cli`](https://www.npmjs.com/package/@clapp/ai-workflow-cli) | [`orion76/clapp-ai-workflow-cli`](https://github.com/orion76/clapp-ai-workflow-cli)       |
 | [`@clapp/ai-workflow-mcp`](https://www.npmjs.com/package/@clapp/ai-workflow-mcp) | [`orion76/clapp-ai-workflow-mcp`](https://github.com/orion76/clapp-ai-workflow-mcp)       |
-
-## Русский
-
-`@clapp/core` — движок фреймворка `clapp`: он поднимает приложение из YAML-конфига, находит плагины команд, контекстов и форматтеров и запускает их либо как CLI на commander, либо как MCP-сервер. Пакет собирает DI-контейнер на `inversify` и менеджеры плагинов на `@orion76/node-plugin`, применяет форматтеры к результатам команд и проводит события жизненного цикла через общую шину. Пакет находится в активной разработке и ещё не опубликован в npm. Релиз ожидается в ближайшее время, но API может меняться без предупреждения. Использовать в продакшне пока нельзя.
 
 ## License
 
