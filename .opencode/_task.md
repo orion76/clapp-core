@@ -1,1 +1,0 @@
-tasks/core-mcp-engine/_task.md
