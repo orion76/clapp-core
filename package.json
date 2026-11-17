@@ -41,7 +41,7 @@
     "pack": "npm pack",
     "prepublishOnly": "npm run build",
     "test": "echo tests for clapp!",
-    "test:jest": "nx jest:test",
+    "test:jest": "jest",
     "install-libs": "./scripts/install.sh",
     "il": "npm run install-libs",
     "typecheck": "tsc --noEmit"

@@ -122,6 +122,12 @@ npm run start:ai        # the CLI host of the `clapp` workspace
 npm run start:ai-mcp    # the MCP host of the `clapp` workspace
 ```
 
+Running the hosts from sources requires the sibling repository `~/my/@orion76`: the `@orion76/*`
+packages (`node-plugin`, `plugin`, `logger`) are wired as `link:../@orion76/projects/*` dependencies
+and their sources are referenced by the workspace `tsconfig` paths, so a checkout without that
+sibling cannot start them. Under the release model the dependency is installed from the local npm
+registry instead of the link (task `packages-registry-flow`).
+
 ## Related packages
 
 | Package                                                                     | Repository                                                                               |
