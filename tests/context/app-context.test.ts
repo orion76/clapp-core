@@ -1,213 +1,275 @@
-import { describe, expect, it } from '@jest/globals';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { afterAll, describe, expect, it } from '@jest/globals';
 import 'reflect-metadata';
 
-import { Container } from 'inversify';
-
-import {
-  AppContext,
-  CONTEXT_MANAGER_TOKEN,
-  contextToken,
-  getContextTokenId,
-  IContextService,
-  IPluginContext,
-  IPluginContextDefinition,
-  PLUGIN_CONTEXT_TYPE,
-  USER_HOME,
-  type TContextIdentifier,
-} from '@clapp/common';
+import { PLUGIN_DEFINITION } from '@orion76/node-plugin';
 import type { IPluginManager } from '@orion76/plugin';
+import { Container, inject, injectable } from 'inversify';
+
+import { APP_ROOT, contextToken, CWD, PLUGIN_CONTEXT_TYPE, USER_HOME } from '@clapp/common';
+import type { IPluginContext, IPluginContextDefinition } from '@clapp/common';
+
+// The context classes are not part of the public API of `@clapp/common` (only their tokens
+// are), while the chain test needs the real class to exercise property injection.
+import { AppRootContext } from '../../../common/src/plugins/context/app-root/app-root.context.js';
+import { bindContextValues } from '../../src/bootstrap.js';
 
 interface IContextValue {
   marker: string;
 }
 
-/**
- * Mock tokens: their runtime value is a unique symbol whose description is the
- * id of the context plugin, so the mock manager can be keyed by plain ids.
- */
-const MOCK_APP_ROOT = contextToken<IContextValue>('app-root');
-const MOCK_CWD = contextToken<IContextValue>('cwd');
-const MOCK_USER_HOME = contextToken<IContextValue>('user-home');
-const MOCK_PROCESS = contextToken<IContextValue>('process');
-const MOCK_BOOM = contextToken<IContextValue>('boom');
-
-// --- Type-level locks (compiled, never executed) -----------------------------
-function typeLocks(): void {
-  const svc = undefined as unknown as IContextService;
-
-  // get(APP_ROOT-style token) resolves to the token value type without an explicit generic.
-  const userHomeValue: Promise<string> = svc.get(USER_HOME);
-  // A plain string is NOT a valid token (the token is a branded symbol).
-  // @ts-expect-error plain string is not assignable to TContextIdentifier<string>
-  const plainStringValue = svc.get('user-home');
-
-  void userHomeValue;
-  void plainStringValue;
+interface IManagerCalls {
+  definitions: number;
+  instances: string[];
+  contexts: string[];
 }
 
-void typeLocks;
+const MOCK_CONTEXT = contextToken<IContextValue>('mock-context');
 
-interface IMockContext<T> {
-  plugin: IPluginContext<T>;
-  calls: () => number;
-  received: () => unknown[];
-  args: () => unknown[];
+function createCalls(): IManagerCalls {
+  return { definitions: 0, instances: [], contexts: [] };
 }
 
 /**
- * Creates a mock context plugin that pulls the values of its dependencies from
- * the given context service, the way the real contexts do, and records how many
- * times `getContext` has been called, the pulled values and the arguments it
- * received.
+ * Creates a mock context plugin that counts its resolutions and returns `value`,
+ * or the result of `resolve` when a context needs to read another token.
  * @param id Id of the context plugin
  * @param value Value the context resolves to
- * @param service Context service the dependencies are pulled from
- * @param dependencies Tokens of the values the context pulls
+ * @param calls Counters of the mock manager
+ * @param resolve Replacement of the value computation
  */
-function createMockContext<T = IContextValue>(
+function createMockContext<T>(
   id: string,
   value: T,
-  service: IContextService,
-  dependencies: readonly TContextIdentifier<unknown>[] = [],
-): IMockContext<T> {
-  let callCount = 0;
-  let receivedValues: unknown[] = [];
-  let receivedArgs: unknown[] = [];
-  const plugin: IPluginContext<T> = {
-    id,
-    label: id,
-    type: PLUGIN_CONTEXT_TYPE,
-    definition: { type: PLUGIN_CONTEXT_TYPE, id, label: id } as IPluginContextDefinition,
-    getContext: async (...args: unknown[]) => {
-      callCount += 1;
-      receivedArgs = args;
-      receivedValues = await Promise.all(dependencies.map((token) => service.get(token)));
-      return value;
-    },
-  };
-  return {
-    plugin,
-    calls: () => callCount,
-    received: () => receivedValues,
-    args: () => receivedArgs,
-  };
-}
+  calls: IManagerCalls,
+  resolve: (() => Promise<T>) | undefined = undefined,
+): IPluginContext<T> {
+  const definition: IPluginContextDefinition<T> = { type: PLUGIN_CONTEXT_TYPE, id: contextToken<T>(id), label: id };
 
-function createMockManager(plugins: Record<string, IPluginContext>): IPluginManager<IPluginContext> {
   return {
-    getDefinition: async (id: string) => plugins[id].definition,
-    getDefinitions: async () => Object.values(plugins).map((plugin) => plugin.definition),
-    getInstance: async (id: string) => plugins[id],
+    id: definition.id,
+    label: definition.label,
+    type: definition.type,
+    definition,
+    getContext: async () => {
+      calls.contexts.push(id);
+      return resolve ? resolve() : value;
+    },
   };
 }
 
 /**
- * Creates an `AppContext` the same way production code does: through the
- * inversify container so that the `@inject(CONTEXT_MANAGER_TOKEN)` property
- * injection is applied.
+ * Creates a plugin manager double: `getDefinitions` returns the definitions of the
+ * given plugins in their order, `getInstance` counts and returns the plugin.
+ * @param plugins Plugins the manager knows
+ * @param calls Counters of the manager
  */
-function createAppContext(manager: IPluginManager<IPluginContext>): AppContext {
-  const container = new Container();
-  container.bind(CONTEXT_MANAGER_TOKEN).toConstantValue(manager);
-  container.bind(AppContext).toSelf();
-  return container.get(AppContext);
+function createMockManager(plugins: IPluginContext[], calls: IManagerCalls): IPluginManager<IPluginContext> {
+  const byId = new Map<string, IPluginContext>(plugins.map((plugin) => [plugin.id, plugin]));
+
+  const requirePlugin = (id: string): IPluginContext => {
+    const plugin = byId.get(id);
+
+    if (!plugin) {
+      throw new Error(`unknown plugin: ${id}`);
+    }
+
+    return plugin;
+  };
+
+  return {
+    getDefinition: async (id: string) => requirePlugin(id).definition,
+    getDefinitions: async () => {
+      calls.definitions += 1;
+      return plugins.map((plugin) => plugin.definition);
+    },
+    getInstance: async (id: string) => {
+      calls.instances.push(id);
+      return requirePlugin(id);
+    },
+  };
 }
 
-describe('AppContext', () => {
-  it('resolves the pull chain: a context reads its dependencies through the context service itself', async () => {
-    const plugins: Record<string, IPluginContext> = {};
-    const appContext = createAppContext(createMockManager(plugins));
+/** Directory of the `@clapp/core` package, wherever jest was started from. */
+function resolvePackageDir(): string {
+  const candidates = [process.cwd(), join(process.cwd(), 'packages/core')];
 
-    const processCtx = createMockContext('process', { marker: 'process' }, appContext);
-    const cwdCtx = createMockContext('cwd', { marker: 'cwd' }, appContext, [MOCK_PROCESS]);
-    const userHomeCtx = createMockContext('user-home', { marker: 'user-home' }, appContext);
-    const appRootCtx = createMockContext('app-root', { marker: 'app-root' }, appContext, [MOCK_CWD, MOCK_USER_HOME]);
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(readFileSync(join(candidate, 'package.json'), 'utf8')) as { name?: string };
 
-    Object.assign(plugins, {
-      process: processCtx.plugin,
-      cwd: cwdCtx.plugin,
-      'user-home': userHomeCtx.plugin,
-      'app-root': appRootCtx.plugin,
-    });
+      if (parsed.name === '@clapp/core') {
+        return candidate;
+      }
+    } catch {
+      // Not a package directory, try the next candidate.
+    }
+  }
 
-    const result = await appContext.get(MOCK_APP_ROOT);
+  throw new Error('package.json of @clapp/core not found');
+}
 
-    expect(result).toEqual({ marker: 'app-root' });
-    // `app-root` pulls [cwdValue, userHomeValue] in the declared token order.
-    expect(appRootCtx.received()).toEqual([{ marker: 'cwd' }, { marker: 'user-home' }]);
-    // `cwd` pulls [processValue].
-    expect(cwdCtx.received()).toEqual([{ marker: 'process' }]);
-    expect(processCtx.received()).toEqual([]);
-    // The pull model passes no positional arguments to `getContext`.
-    expect(appRootCtx.args()).toEqual([]);
-    expect(cwdCtx.args()).toEqual([]);
-  });
+interface IProjectTree {
+  userHome: string;
+  cwd: string;
+  projectRoot: string;
+}
 
-  it('returns the same cached value and does not recreate contexts on repeated get', async () => {
-    const plugins: Record<string, IPluginContext> = {};
-    const appContext = createAppContext(createMockManager(plugins));
+const temporaryDirs: string[] = [];
 
-    const processCtx = createMockContext('process', { marker: 'process' }, appContext);
-    const cwdCtx = createMockContext('cwd', { marker: 'cwd' }, appContext, [MOCK_PROCESS]);
-    const appRootCtx = createMockContext('app-root', { marker: 'app-root' }, appContext, [MOCK_CWD]);
+/**
+ * Creates a throwaway project tree under the git-ignored `tmp/` of the package: a
+ * `package.json` in `project/` and a working directory nested below it.
+ */
+function createProjectTree(): IProjectTree {
+  const tmpDir = join(resolvePackageDir(), 'tmp');
+  mkdirSync(tmpDir, { recursive: true });
 
-    Object.assign(plugins, {
-      process: processCtx.plugin,
-      cwd: cwdCtx.plugin,
-      'app-root': appRootCtx.plugin,
-    });
+  const userHome = mkdtempSync(join(tmpDir, 'app-root-'));
+  temporaryDirs.push(userHome);
 
-    const first = await appContext.get(MOCK_APP_ROOT);
-    const second = await appContext.get(MOCK_APP_ROOT);
+  const projectRoot = join(userHome, 'project');
+  const cwd = join(projectRoot, 'nested', 'deeper');
+  mkdirSync(cwd, { recursive: true });
+  writeFileSync(join(projectRoot, 'package.json'), '{ "name": "app-root-fixture" }\n');
 
-    expect(second).toBe(first);
-    expect(processCtx.calls()).toBe(1);
-    expect(cwdCtx.calls()).toBe(1);
-    expect(appRootCtx.calls()).toBe(1);
-  });
+  return { userHome, cwd, projectRoot };
+}
 
-  it('returns a cached value when a context with no dependencies is requested twice', async () => {
-    const plugins: Record<string, IPluginContext> = {};
-    const appContext = createAppContext(createMockManager(plugins));
-    const processCtx = createMockFn('process', appContext);
-
-    plugins.process = processCtx.plugin;
-
-    const first = await appContext.get(MOCK_PROCESS);
-    const second = await appContext.get(MOCK_PROCESS);
-
-    expect(second).toBe(first);
-    expect(processCtx.calls()).toBe(1);
-  });
-
-  it('rethrows context getContext failures', async () => {
-    const failing: IPluginContext<never> = {
-      id: 'boom',
-      label: 'boom',
-      type: PLUGIN_CONTEXT_TYPE,
-      definition: { type: PLUGIN_CONTEXT_TYPE, id: 'boom', label: 'boom' },
-      getContext: async () => {
-        throw new Error('boom');
-      },
-    };
-    const manager = createMockManager({ boom: failing });
-    const appContext = createAppContext(manager);
-
-    await expect(appContext.get(MOCK_BOOM)).rejects.toThrow('boom');
-  });
-
-  it('addresses a context plugin by the id carried in the token description', async () => {
-    expect(typeof MOCK_CWD).toBe('symbol');
-    expect(getContextTokenId(MOCK_CWD)).toBe('cwd');
-    expect(getContextTokenId(USER_HOME)).toBe('user-home');
-    // The token itself is never the string id of the plugin.
-    expect(MOCK_CWD as unknown).not.toBe('cwd');
-    // Two tokens declared with the same id stay distinct: symbols never collide.
-    expect(contextToken<IContextValue>('cwd')).not.toBe(MOCK_CWD);
-    expect(() => getContextTokenId(Symbol('') as TContextIdentifier<unknown>)).toThrow('Context token has no plugin id');
-  });
+afterAll(() => {
+  for (const dir of temporaryDirs) {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
-function createMockFn<T>(id: string, service: IContextService): IMockContext<T> {
-  return createMockContext<T>(id, { marker: id } as T, service);
-}
+describe('bindContextValues', () => {
+  it('binds tokens lazily: nothing is created while the definitions are walked', async () => {
+    const calls = createCalls();
+    const container = new Container();
+    const manager = createMockManager([createMockContext('mock-context', { marker: 'mock' }, calls)], calls);
+
+    await bindContextValues(container, manager);
+
+    expect(calls.definitions).toBe(1);
+    expect(calls.instances).toEqual([]);
+    expect(calls.contexts).toEqual([]);
+  });
+
+  it('resolves the plugin instance and its value once per token', async () => {
+    const calls = createCalls();
+    const container = new Container();
+    const value: IContextValue = { marker: 'mock' };
+    const manager = createMockManager([createMockContext('mock-context', value, calls)], calls);
+    await bindContextValues(container, manager);
+
+    const first = await container.getAsync<IContextValue>(MOCK_CONTEXT);
+    const second = await container.getAsync<IContextValue>(MOCK_CONTEXT);
+
+    expect(first).toBe(value);
+    expect(second).toBe(first);
+    expect(calls.instances).toEqual(['mock-context']);
+    expect(calls.contexts).toEqual(['mock-context']);
+  });
+
+  it('injects the ready value into a consumer resolved through getAsync', async () => {
+    @injectable()
+    class ValueConsumer {
+      @inject(MOCK_CONTEXT) value!: IContextValue;
+    }
+
+    const calls = createCalls();
+    const container = new Container();
+    const value: IContextValue = { marker: 'mock' };
+    const manager = createMockManager([createMockContext('mock-context', value, calls)], calls);
+    container.bind(ValueConsumer).toSelf();
+    await bindContextValues(container, manager);
+
+    const consumer = await container.getAsync(ValueConsumer);
+
+    expect(consumer.value).toBe(value);
+    expect(calls.instances).toEqual(['mock-context']);
+  });
+
+  it('resolves app-root through its injected cwd and user-home values', async () => {
+    const tree = createProjectTree();
+    const calls = createCalls();
+    const container = new Container();
+    const definition: IPluginContextDefinition<string> = {
+      type: PLUGIN_CONTEXT_TYPE,
+      id: APP_ROOT,
+      label: 'App root directory',
+    };
+    const manager: IPluginManager<IPluginContext> = {
+      getDefinition: async () => definition,
+      getDefinitions: async () => {
+        calls.definitions += 1;
+        return [definition];
+      },
+      getInstance: async (id: string) => {
+        calls.instances.push(id);
+        // The plugin instance itself comes from the container, so the `@inject(CWD)` and
+        // `@inject(USER_HOME)` fields of the real class are filled by its property injection.
+        return container.getAsync(AppRootContext);
+      },
+    };
+    container.bind(PLUGIN_DEFINITION).toConstantValue(definition);
+    container.bind(AppRootContext).toSelf();
+    // Same binding shape bootstrap uses for every context token: an asynchronously
+    // resolved value in a singleton scope, injectable only through the async API.
+    container
+      .bind<unknown>(CWD)
+      .toResolvedValue(async () => tree.cwd)
+      .inSingletonScope();
+    container
+      .bind<unknown>(USER_HOME)
+      .toResolvedValue(async () => tree.userHome)
+      .inSingletonScope();
+    await bindContextValues(container, manager);
+
+    await expect(container.getAsync<string>(APP_ROOT)).resolves.toBe(tree.projectRoot);
+    expect(calls.instances).toEqual(['app-root']);
+  });
+
+  it('refuses a synchronous resolution of a context token', async () => {
+    const calls = createCalls();
+    const container = new Container();
+    const manager = createMockManager([createMockContext('mock-context', { marker: 'mock' }, calls)], calls);
+    await bindContextValues(container, manager);
+
+    // The value binding is asynchronous by construction: a sync `get` fails loudly instead
+    // of leaking a `Promise` into a field typed as the value, so every consumer uses getAsync.
+    expect(() => container.get(MOCK_CONTEXT)).toThrow(/Unexpected asynchronous service/);
+  });
+
+  it('resolves a context that reads another token of the same definition set', async () => {
+    const calls = createCalls();
+    const container = new Container();
+    const baseContext = contextToken<IContextValue>('base-context');
+    const dependentContext = contextToken<IContextValue>('dependent-context');
+    const dependent = createMockContext('dependent-context', { marker: 'dependent' }, calls, async () => {
+      const baseValue = await container.getAsync<IContextValue>(baseContext);
+
+      return { marker: `dependent:${baseValue.marker}` };
+    });
+    const base = createMockContext('base-context', { marker: 'base' }, calls);
+    // The dependent context is declared first: every binding is registered before the first
+    // resolution, so the declaration order does not matter.
+    await bindContextValues(container, createMockManager([dependent, base], calls));
+
+    await expect(container.getAsync<IContextValue>(dependentContext)).resolves.toEqual({ marker: 'dependent:base' });
+    await expect(container.getAsync<IContextValue>(baseContext)).resolves.toEqual({ marker: 'base' });
+  });
+
+  it('rejects with the error thrown by a context value', async () => {
+    const calls = createCalls();
+    const container = new Container();
+    const failing = createMockContext('failing-context', undefined, calls, async () => {
+      throw new Error('boom');
+    });
+    await bindContextValues(container, createMockManager([failing], calls));
+
+    await expect(container.getAsync(contextToken<IContextValue>('failing-context'))).rejects.toThrow('boom');
+  });
+});
