@@ -5,7 +5,9 @@ import type { IPluginManager } from '@orion76/node-plugin';
 import { inject, injectable } from 'inversify';
 
 import {
+  applyArgumentChain,
   buildHierarchy,
+  COMMAND_ARGUMENT_MANAGER_TOKEN,
   COMMAND_MANAGER_TOKEN,
   EVENT_BUS_TOKEN,
   FORMATTER_MANAGER_TOKEN,
@@ -15,8 +17,10 @@ import {
   IEngine,
   type IEventBus,
   type IPluginCommand,
+  type IPluginCommandArgument,
   type IPluginFormatter,
   PLUGIN_COMMAND_TYPE,
+  resolveArgumentChain,
 } from '@clapp/common';
 
 
@@ -39,6 +43,7 @@ export class MCPEngine implements IEngine, IMCPCommandInvoker {
   @inject(APP_CONFIG_TOKEN) private readonly config!: IAppConfig;
   @inject(EVENT_BUS_TOKEN) private readonly eventBus!: IEventBus<IClappLifecycleMap>;
   @inject(COMMAND_MANAGER_TOKEN) private readonly pluginManager!: IPluginManager<IPluginCommand>;
+  @inject(COMMAND_ARGUMENT_MANAGER_TOKEN) private readonly argumentManager!: IPluginManager<IPluginCommandArgument>;
   @inject(FORMATTER_MANAGER_TOKEN) private readonly formatterManager!: IPluginManager<IPluginFormatter>;
 
   /** Commands of the project grouped by the MCP surface they are exposed through. */
@@ -48,9 +53,19 @@ export class MCPEngine implements IEngine, IMCPCommandInvoker {
   private readonly serverFactory: McpServerFactory = () => this.createServer();
 
 
+  /**
+   * Builds the registry of the entities the surfaces expose.
+   *
+   * The argument chain rewrites the definitions before the registry is built: the registry
+   * carries the rewritten definition into the argument schema and into the parsing of an
+   * MCP call, so an argument a chain step fills is advertised as optional and a client is
+   * not required to send it.
+   */
   async initialize(): Promise<void> {
     const commandDefinitions = await this.pluginManager.getDefinitions();
-    const commandNodes = buildHierarchy(commandDefinitions);
+    const chain = await resolveArgumentChain(this.argumentManager);
+    const overriddenDefinitions = commandDefinitions.map((definition) => applyArgumentChain(definition, chain));
+    const commandNodes = buildHierarchy(overriddenDefinitions);
     const registry = buildEntityRegistry(commandNodes);
 
     this.reportSkipped(registry.skipped);

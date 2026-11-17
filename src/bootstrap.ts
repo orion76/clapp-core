@@ -23,6 +23,7 @@ import {
   PLUGIN_CONTEXT_TYPE,
   PLUGIN_FORMATTER_TYPE,
   Type,
+  assertKnownArgumentNames,
   getAppMeta,
   initAppMeta,
   resolveExitCode,
@@ -107,6 +108,9 @@ export async function bootstrapApp(engineClass: Type<IEngine>, container: Contai
     { config: createLoaderConfig(config.plugins[PLUGIN_COMMAND_ARGUMENT_TYPE]), pluginLoaderCls: ClappPluginLoader },
     container,
   );
+
+  const argumentManager = await container.getAsync(COMMAND_ARGUMENT_MANAGER_TOKEN);
+  assertKnownArgumentNames(await argumentManager.getDefinitions());
 
   providePluginManager<IPluginContext>(
     PLUGIN_CONTEXT_TYPE,
