@@ -1,20 +1,16 @@
-import { providePluginManager } from '@orion76/node-plugin';
+import { providePluginManager, type IPluginManager } from '@orion76/node-plugin';
 import { CommanderError } from 'commander';
-import type { Container, ServiceIdentifier } from 'inversify';
+import type { Container } from 'inversify';
 
 import {
-  AppContext,
   COMMAND_ARGUMENT_MANAGER_TOKEN,
   COMMAND_MANAGER_TOKEN,
   COMMAND_SERVICE_TOKEN,
   CommandService,
   CONTEXT_MANAGER_TOKEN,
-  CONTEXT_SERVICE_TOKEN,
-  CONTEXT_TOKENS,
   EVENT_BUS_TOKEN,
   EventBus,
   FORMATTER_MANAGER_TOKEN,
-  type IContextService,
   IEngine,
   IInitAppOptions,
   IPluginCommand,
@@ -26,7 +22,6 @@ import {
   PLUGIN_COMMAND_TYPE,
   PLUGIN_CONTEXT_TYPE,
   PLUGIN_FORMATTER_TYPE,
-  type TContextAccessor,
   Type,
   getAppMeta,
   initAppMeta,
@@ -60,21 +55,24 @@ function createLoaderConfig(pluginConfig: IPluginDiscoveryConfig): IClappPluginL
 }
 
 /**
- * Binds every built-in context token as a lazy accessor, so a plugin gets a context
- * value through `@inject(TOKEN)` and calls the accessor only when the value is needed.
- *
- * The accessor is lazy on purpose: `IContextService.get` is asynchronous while DI
- * injection is synchronous, so an eager binding would resolve every context at startup
- * and an unavailable one — no project root outside a project, for instance — would take
- * the whole host down, `--help` included. A lazy accessor keeps the failure in the
- * command that actually asks for the value.
+ * Binds the value of every discovered context plugin under the token of its own
+ * definition. The value is created on the first request of the token and cached by
+ * the singleton scope, so nothing is built while the definitions are walked — a
+ * context may inject the tokens of other contexts registered in the same loop.
  * @param container Application container
+ * @param manager Manager of the context plugins
  */
-function bindContextAccessors(container: Container): void {
-  for (const token of CONTEXT_TOKENS) {
+export async function bindContextValues(container: Container, manager: IPluginManager<IPluginContext>): Promise<void> {
+  const definitions = await manager.getDefinitions();
+
+  for (const definition of definitions) {
     container
-      .bind<TContextAccessor<unknown>>(token)
-      .toDynamicValue(() => () => container.get<IContextService>(CONTEXT_SERVICE_TOKEN).get(token));
+      .bind<unknown>(definition.id)
+      .toResolvedValue(async () => {
+        const plugin = await manager.getInstance(definition.id);
+        return plugin.getContext();
+      })
+      .inSingletonScope();
   }
 }
 
@@ -88,8 +86,6 @@ export async function bootstrapApp(engineClass: Type<IEngine>, container: Contai
 
   container.bind(EVENT_BUS_TOKEN).to(EventBus).inSingletonScope();
 
-  container.bind(CONTEXT_SERVICE_TOKEN).to(AppContext);
-  bindContextAccessors(container);
   container.bind(COMMAND_SERVICE_TOKEN).to(CommandService).inSingletonScope();
   loggerCollectionBind(container);
 
@@ -119,6 +115,9 @@ export async function bootstrapApp(engineClass: Type<IEngine>, container: Contai
     container,
   );
 
+  const contextManager = await container.getAsync(CONTEXT_MANAGER_TOKEN);
+  await bindContextValues(container, contextManager);
+
   providePluginManager<IPluginFormatter>(
     PLUGIN_FORMATTER_TYPE,
     FORMATTER_MANAGER_TOKEN,
@@ -126,7 +125,7 @@ export async function bootstrapApp(engineClass: Type<IEngine>, container: Contai
     container,
   );
 
-  const app = container.get(ENGINE_TOKEN);
+  const app = await container.getAsync(ENGINE_TOKEN);
 
   await app.initialize();
   return app;
