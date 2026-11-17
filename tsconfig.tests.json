@@ -4,22 +4,15 @@
     "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "bundler",
-    "types": [
-      "jest",
-      "node"
-    ],
+    "types": ["jest", "node"],
     "allowJs": true,
     "paths": {
-      "@clapp/common": [
-        "../common/src/public-api.ts"
-      ]
+      "@clapp/common": ["../common/src/public-api.ts"],
+      "@orion76/plugin": ["../../../@orion76/projects/plugin/src/public-api.ts"],
+      "@orion76/node-plugin": ["../../../@orion76/projects/node-plugin/src/public-api.ts"],
+      "@orion76/logger": ["../../../@orion76/projects/logger/src/public-api.ts"]
     }
   },
-  "include": [
-    "tests/**/*.ts"
-  ],
-  "exclude": [
-    "dist/**",
-    "node_modules/**"
-  ]
+  "include": ["tests/**/*.ts"],
+  "exclude": ["dist/**", "node_modules/**"]
 }

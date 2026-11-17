@@ -42,8 +42,9 @@ export class CliEngine implements IEngine {
 
     this.program = this.commandService.createProgram(this.config);
 
-    const commands= await this.commandService.createAppCommands(this.program,this.contextService);
-    this.program.commands
+    await this.commandService.createAppCommands(this.program, this.contextService, (definition, result) =>
+      this.formatCommandResult(definition, result),
+    );
     this.program.allowExcessArguments();
   }
 
@@ -52,16 +53,23 @@ export class CliEngine implements IEngine {
   }
   /**
    * Runs command line argument processing
-   * @param argv Command line arguments
+   * @param argv Command line arguments; a frozen array or `as const` tuple is accepted
    */
-  public async run(argv: string[]): Promise<void> {
+  public async run(argv: readonly string[]): Promise<void> {
     await this.program.parseAsync(argv);
   }
 
 
+  /**
+   * Renders the result of a command that declares a formatter and writes it to stdout.
+   *
+   * A failed result is not formatted, and an empty formatter output is not printed.
+   * @param definition Definition of the command that produced the result
+   * @param result Result returned by the command action
+   */
   private async formatCommandResult(definition: IPluginCommandDefinition, result: ICommandResult): Promise<void> {
     const { formatter } = definition;
-    if (!formatter) {
+    if (!formatter || !result.success) {
       return;
     }
 

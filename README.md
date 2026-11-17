@@ -6,7 +6,9 @@
 
 # @clapp/core
 
-The engine of the `clapp` CLI framework: it boots an application from a YAML config, discovers command, context and formatter plugins, and runs them either as a commander-based CLI or as an MCP server. It is a part of the [`orion76/clapp`](https://github.com/orion76/clapp) monorepo and builds on `@clapp/common` (contracts), `@clapp/utils` (helpers), `@orion76/node-plugin` and `inversify`.
+The package is published from its own repository, [`orion76/clapp-core`](https://github.com/orion76/clapp-core); it is developed together with the `clapp` host and its dev sample app ([`orion76/clapp`](https://github.com/orion76/clapp)).
+
+The engine of the `clapp` CLI framework: it boots an application from a YAML config, discovers command, context and formatter plugins, and runs them either as a commander-based CLI or as an MCP server. It builds on `@clapp/common` (contracts), `@clapp/utils` (helpers), `@orion76/node-plugin` and `inversify`.
 
 ## Features
 
@@ -21,7 +23,7 @@ The engine of the `clapp` CLI framework: it boots an application from a YAML con
 
 ## Installation
 
-The package is not published to npm yet, so `npm install @clapp/core` does not resolve until the first release. Until then it is consumed as a workspace package of the monorepo:
+The package is not published to npm yet, so `npm install @clapp/core` does not resolve until the first release. Until then it is consumed as a workspace package of the `clapp` host workspace ([`orion76/clapp`](https://github.com/orion76/clapp)):
 
 ```bash
 npm install @clapp/core @clapp/common @clapp/utils
@@ -111,13 +113,13 @@ export class GreetCommandPlugin extends PluginCommandBase<{ name: string }> {
 
 A definition carries `type`, `kind` (`tool` | `resource` | `prompt` | `group`), a unique `id`, the `command` name and its optional `parent` for a subcommand, a `label`, an optional `formatter` and the `config` with `arguments` and `options`. An `MCPEngine` host exposes only leaf commands that declare a formatter; anything else is reported to stderr instead of silently disappearing.
 
-### Running inside the monorepo
+### Running inside the host workspace
 
 ```bash
 npm run build:core      # build the package
 npm run typecheck -w @clapp/core
-npm run start:ai        # the CLI host of the monorepo
-npm run start:ai-mcp    # the MCP host of the monorepo
+npm run start:ai        # the CLI host of the `clapp` workspace
+npm run start:ai-mcp    # the MCP host of the `clapp` workspace
 ```
 
 ## Related packages

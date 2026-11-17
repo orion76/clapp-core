@@ -14,7 +14,7 @@ import { resolveFilePathPatterns } from './config';
 /**
  * Plugin types the configuration always carries.
  */
-const PLUGIN_TYPES: UPluginTypes[] = [PLUGIN_COMMAND_TYPE, PLUGIN_CONTEXT_TYPE, PLUGIN_FORMATTER_TYPE];
+const PLUGIN_TYPES: UPluginTypes[] = [PLUGIN_COMMAND_TYPE, PLUGIN_COMMAND_ARGUMENT_TYPE, PLUGIN_CONTEXT_TYPE, PLUGIN_FORMATTER_TYPE];
 /**
  * Source types a config may declare, in the order they are documented.
  */

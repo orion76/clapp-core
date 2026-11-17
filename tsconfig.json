@@ -15,13 +15,13 @@
         "../utils/src/public-api.ts"
       ],
       "@orion76/logger": [
-        "../../libraries/logger/src/public-api.ts"
+        "../../../@orion76/projects/logger/src/public-api.ts"
       ],
       "@orion76/plugin": [
-        "../../libraries/plugin/src/public-api.ts"
+        "../../../@orion76/projects/plugin/src/public-api.ts"
       ],
       "@orion76/node-plugin": [
-        "../../libraries/node-plugin/src/public-api.ts"
+        "../../../@orion76/projects/node-plugin/src/public-api.ts"
       ],
     }
   },

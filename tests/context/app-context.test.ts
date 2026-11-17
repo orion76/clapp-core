@@ -7,64 +7,89 @@ import {
   AppContext,
   CONTEXT_MANAGER_TOKEN,
   contextToken,
+  getContextTokenId,
   IContextService,
   IPluginContext,
   IPluginContextDefinition,
   PLUGIN_CONTEXT_TYPE,
   USER_HOME,
+  type TContextIdentifier,
 } from '@clapp/common';
 import type { IPluginManager } from '@orion76/plugin';
 
-
-
-type ContextValue = { marker: string };
+interface IContextValue {
+  marker: string;
+}
 
 /**
- * Branded mock tokens: their runtime value is a plain id string (the phantom
- * brand carries `ContextValue`), so the mock manager can be keyed by plain ids.
+ * Mock tokens: their runtime value is a unique symbol whose description is the
+ * id of the context plugin, so the mock manager can be keyed by plain ids.
  */
-const MOCK_APP_ROOT = contextToken<ContextValue>('app-root');
-const MOCK_CWD = contextToken<ContextValue>('cwd');
-const MOCK_USER_HOME = contextToken<ContextValue>('user-home');
-const MOCK_PROCESS = contextToken<ContextValue>('process');
-const MOCK_BOOM = contextToken<ContextValue>('boom');
+const MOCK_APP_ROOT = contextToken<IContextValue>('app-root');
+const MOCK_CWD = contextToken<IContextValue>('cwd');
+const MOCK_USER_HOME = contextToken<IContextValue>('user-home');
+const MOCK_PROCESS = contextToken<IContextValue>('process');
+const MOCK_BOOM = contextToken<IContextValue>('boom');
 
-// --- Type-level locks (never executed) ---------------------------------------
-declare const _svc: IContextService;
-// get(APP_ROOT-style token) resolves to the token value type without explicit generic.
-const _userHomeValue: Promise<string> = _svc.get(USER_HOME);
-// A plain string is NOT a valid token (branded `InjectableIdentifier`).
-// @ts-expect-error plain string is not assignable to InjectableIdentifier<string>
-const _plainStringValue = _svc.get('user-home');
+// --- Type-level locks (compiled, never executed) -----------------------------
+function typeLocks(): void {
+  const svc = undefined as unknown as IContextService;
+
+  // get(APP_ROOT-style token) resolves to the token value type without an explicit generic.
+  const userHomeValue: Promise<string> = svc.get(USER_HOME);
+  // A plain string is NOT a valid token (the token is a branded symbol).
+  // @ts-expect-error plain string is not assignable to TContextIdentifier<string>
+  const plainStringValue = svc.get('user-home');
+
+  void userHomeValue;
+  void plainStringValue;
+}
+
+void typeLocks;
 
 interface IMockContext<T> {
   plugin: IPluginContext<T>;
   calls: () => number;
   received: () => unknown[];
+  args: () => unknown[];
 }
 
 /**
- * Creates a mock context plugin that records how many times `getContext` has
- * been called and the arguments it received.
+ * Creates a mock context plugin that pulls the values of its dependencies from
+ * the given context service, the way the real contexts do, and records how many
+ * times `getContext` has been called, the pulled values and the arguments it
+ * received.
+ * @param id Id of the context plugin
+ * @param value Value the context resolves to
+ * @param service Context service the dependencies are pulled from
+ * @param dependencies Tokens of the values the context pulls
  */
-function createMockContext<T = ContextValue>(id: string, value: T, dependencies?: string[]): IMockContext<T> {
+function createMockContext<T = IContextValue>(
+  id: string,
+  value: T,
+  service: IContextService,
+  dependencies: readonly TContextIdentifier<unknown>[] = [],
+): IMockContext<T> {
   let callCount = 0;
+  let receivedValues: unknown[] = [];
   let receivedArgs: unknown[] = [];
   const plugin: IPluginContext<T> = {
     id,
     label: id,
     type: PLUGIN_CONTEXT_TYPE,
-    definition: { type: PLUGIN_CONTEXT_TYPE, id, label: id, dependencies } as IPluginContextDefinition,
-    getContext: async (...received: unknown[]) => {
+    definition: { type: PLUGIN_CONTEXT_TYPE, id, label: id } as IPluginContextDefinition,
+    getContext: async (...args: unknown[]) => {
       callCount += 1;
-      receivedArgs = received;
+      receivedArgs = args;
+      receivedValues = await Promise.all(dependencies.map((token) => service.get(token)));
       return value;
     },
   };
   return {
     plugin,
     calls: () => callCount,
-    received: () => receivedArgs,
+    received: () => receivedValues,
+    args: () => receivedArgs,
   };
 }
 
@@ -89,41 +114,48 @@ function createAppContext(manager: IPluginManager<IPluginContext>): AppContext {
 }
 
 describe('AppContext', () => {
-  it('resolves the dependency chain and passes dependency values to getContext in order', async () => {
-    const processCtx = createMockContext('process', { marker: 'process' });
-    const cwdCtx = createMockContext('cwd', { marker: 'cwd' }, ['process']);
-    const userHomeCtx = createMockContext('user-home', { marker: 'user-home' });
-    const appRootCtx = createMockContext('app-root', { marker: 'app-root' }, ['cwd', 'user-home']);
+  it('resolves the pull chain: a context reads its dependencies through the context service itself', async () => {
+    const plugins: Record<string, IPluginContext> = {};
+    const appContext = createAppContext(createMockManager(plugins));
 
-    const manager = createMockManager({
+    const processCtx = createMockContext('process', { marker: 'process' }, appContext);
+    const cwdCtx = createMockContext('cwd', { marker: 'cwd' }, appContext, [MOCK_PROCESS]);
+    const userHomeCtx = createMockContext('user-home', { marker: 'user-home' }, appContext);
+    const appRootCtx = createMockContext('app-root', { marker: 'app-root' }, appContext, [MOCK_CWD, MOCK_USER_HOME]);
+
+    Object.assign(plugins, {
       process: processCtx.plugin,
       cwd: cwdCtx.plugin,
       'user-home': userHomeCtx.plugin,
       'app-root': appRootCtx.plugin,
     });
-    const appContext = createAppContext(manager);
 
     const result = await appContext.get(MOCK_APP_ROOT);
 
     expect(result).toEqual({ marker: 'app-root' });
-    // `app-root` receives [cwdValue, userHomeValue] in dependencies order.
+    // `app-root` pulls [cwdValue, userHomeValue] in the declared token order.
     expect(appRootCtx.received()).toEqual([{ marker: 'cwd' }, { marker: 'user-home' }]);
-    // `cwd` receives [processValue] in dependencies order.
+    // `cwd` pulls [processValue].
     expect(cwdCtx.received()).toEqual([{ marker: 'process' }]);
     expect(processCtx.received()).toEqual([]);
+    // The pull model passes no positional arguments to `getContext`.
+    expect(appRootCtx.args()).toEqual([]);
+    expect(cwdCtx.args()).toEqual([]);
   });
 
   it('returns the same cached value and does not recreate contexts on repeated get', async () => {
-    const processCtx = createMockContext('process', { marker: 'process' });
-    const cwdCtx = createMockContext('cwd', { marker: 'cwd' }, ['process']);
-    const appRootCtx = createMockContext('app-root', { marker: 'app-root' }, ['cwd']);
+    const plugins: Record<string, IPluginContext> = {};
+    const appContext = createAppContext(createMockManager(plugins));
 
-    const manager = createMockManager({
+    const processCtx = createMockContext('process', { marker: 'process' }, appContext);
+    const cwdCtx = createMockContext('cwd', { marker: 'cwd' }, appContext, [MOCK_PROCESS]);
+    const appRootCtx = createMockContext('app-root', { marker: 'app-root' }, appContext, [MOCK_CWD]);
+
+    Object.assign(plugins, {
       process: processCtx.plugin,
       cwd: cwdCtx.plugin,
       'app-root': appRootCtx.plugin,
     });
-    const appContext = createAppContext(manager);
 
     const first = await appContext.get(MOCK_APP_ROOT);
     const second = await appContext.get(MOCK_APP_ROOT);
@@ -135,9 +167,11 @@ describe('AppContext', () => {
   });
 
   it('returns a cached value when a context with no dependencies is requested twice', async () => {
-    const processCtx = createMockFn('process');
-    const manager = createMockManager({ process: processCtx.plugin });
-    const appContext = createAppContext(manager);
+    const plugins: Record<string, IPluginContext> = {};
+    const appContext = createAppContext(createMockManager(plugins));
+    const processCtx = createMockFn('process', appContext);
+
+    plugins.process = processCtx.plugin;
 
     const first = await appContext.get(MOCK_PROCESS);
     const second = await appContext.get(MOCK_PROCESS);
@@ -161,8 +195,19 @@ describe('AppContext', () => {
 
     await expect(appContext.get(MOCK_BOOM)).rejects.toThrow('boom');
   });
+
+  it('addresses a context plugin by the id carried in the token description', async () => {
+    expect(typeof MOCK_CWD).toBe('symbol');
+    expect(getContextTokenId(MOCK_CWD)).toBe('cwd');
+    expect(getContextTokenId(USER_HOME)).toBe('user-home');
+    // The token itself is never the string id of the plugin.
+    expect(MOCK_CWD as unknown).not.toBe('cwd');
+    // Two tokens declared with the same id stay distinct: symbols never collide.
+    expect(contextToken<IContextValue>('cwd')).not.toBe(MOCK_CWD);
+    expect(() => getContextTokenId(Symbol('') as TContextIdentifier<unknown>)).toThrow('Context token has no plugin id');
+  });
 });
 
-function createMockFn<T>(id: string): IMockContext<T> {
-  return createMockContext<T>(id, { marker: id } as T);
+function createMockFn<T>(id: string, service: IContextService): IMockContext<T> {
+  return createMockContext<T>(id, { marker: id } as T, service);
 }
