@@ -4,7 +4,6 @@ import { inject, injectable } from 'inversify';
 
 import {
   COMMAND_SERVICE_TOKEN,
-  CONTEXT_SERVICE_TOKEN,
   FORMATTER_MANAGER_TOKEN,
   IAppConfig,
   ICommandService,
@@ -16,7 +15,6 @@ import {
 
 import { TLogger, UConsoleLevels } from '@orion76/logger';
 
-import { IContextService } from '../../../../common/src/plugin-types/context/types';
 import { APP_CONFIG_TOKEN, CLAPP_LOGGER_TOKEN } from '../../public-api';
 
 
@@ -28,7 +26,6 @@ export class CliEngine implements IEngine {
   @inject(CLAPP_LOGGER_TOKEN) private readonly logger!: TLogger;
   @inject(APP_CONFIG_TOKEN) private readonly config!: IAppConfig;
   @inject(COMMAND_SERVICE_TOKEN) private readonly commandService!: ICommandService;
-  @inject(CONTEXT_SERVICE_TOKEN) private readonly contextService!: IContextService;
   @inject(FORMATTER_MANAGER_TOKEN) private readonly formatterManager!: IPluginManager<IPluginFormatter>;
 
   private program!: Command;
@@ -42,7 +39,7 @@ export class CliEngine implements IEngine {
 
     this.program = this.commandService.createProgram(this.config);
 
-    await this.commandService.createAppCommands(this.program, this.contextService, (definition, result) =>
+    await this.commandService.createAppCommands(this.program, (definition, result) =>
       this.formatCommandResult(definition, result),
     );
     this.program.allowExcessArguments();
