@@ -1,12 +1,13 @@
 import { IAppConfig, PLUGIN_COMMAND_ARGUMENT_TYPE, PLUGIN_COMMAND_TYPE, PLUGIN_CONTEXT_TYPE, PLUGIN_FORMATTER_TYPE, TCliConfigCustom, UPluginTypes } from '@clapp/common';
 import { existsSync, realpathSync } from 'fs';
-import { resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import { join } from 'path';
 import { APP_CONFIG_DEFAULT } from '../config/config';
 
 import {
   IPluginDiscoveryConfig,
   IPluginSourceLibraryConfig,
+  IPluginSourcePathConfig,
   UPluginSourceConfig,
   UPluginSourceType
 } from '../../../common/src/types/plugin-config';
@@ -18,7 +19,7 @@ const PLUGIN_TYPES: UPluginTypes[] = [PLUGIN_COMMAND_TYPE, PLUGIN_COMMAND_ARGUME
 /**
  * Source types a config may declare, in the order they are documented.
  */
-const PLUGIN_SOURCE_TYPES: UPluginSourceType[] = ['appRoot', 'library', 'project'];
+const PLUGIN_SOURCE_TYPES: UPluginSourceType[] = ['appRoot', 'path', 'library', 'project'];
 
 /**
  *
@@ -42,11 +43,11 @@ function mergeConfigs(defaultConfig: IAppConfig, customConfig: TCliConfigCustom)
 
 /**
  * Resolves the sources of every plugin type of a config against the root of
- * their own source: `appRoot` sources against the application root, `library`
- * sources against the directory of the named package and `project` sources
- * against the root of the context project (empty when it is not found).
+ * their own source: `appRoot` against the application root, `path` against the
+ * directory it names, `library` against the directory of the named package and
+ * `project` against the root of the context project (empty when not found).
  *
- * @param appRoot Application root used as the base of `appRoot` sources
+ * @param appRoot Application root used as the base of `appRoot` and `path` sources
  * @param config CLI configuration whose plugin sources are resolved
  * @returns Configuration with resolved plugin source patterns
  */
@@ -62,12 +63,28 @@ function resolveConfigPatterns(config: IAppConfig, appRoot: string, projectRoot?
   };
 }
 
+/**
+ * Resolves the source patterns of one plugin type. A `path` source whose
+ * directory is missing does not raise: an empty source is a valid state, while a
+ * missing `library` package still fails the resolution.
+ *
+ * @param pluginConfig Discovery config of the plugin type
+ * @param appRoot Application root used as the base of `appRoot` and `path` sources
+ * @param projectRoot Root of the context project, absent when there is no project
+ * @returns Discovery config with resolved source patterns
+ */
 function resolveTypePatterns(pluginConfig: IPluginDiscoveryConfig, appRoot: string, projectRoot?: string): IPluginDiscoveryConfig {
   const sources = pluginConfig.sources.map((source) => {
     let patterns: string[] = [];
     switch (source.type) {
       case 'appRoot':
         patterns = resolveFilePathPatterns(appRoot, source.patterns);
+        break;
+      case 'path':
+        if (isPathConfig(source)) {
+          const sourceRoot = isAbsolute(source.path) ? source.path : resolve(appRoot, source.path);
+          patterns = resolveFilePathPatterns(sourceRoot, source.patterns);
+        }
         break;
       case 'project':
         if (projectRoot) {
@@ -128,6 +145,10 @@ function resolveLibraryRoot(appRoot: string, library: string): string | null {
 
 function isLibraryConfig(config: UPluginSourceConfig): config is IPluginSourceLibraryConfig {
   return config.type === 'library';
+}
+
+function isPathConfig(config: UPluginSourceConfig): config is IPluginSourcePathConfig {
+  return config.type === 'path';
 }
 
 /**
@@ -224,6 +245,10 @@ function normalizeSource(raw: UPluginSourceConfig): UPluginSourceConfig {
 
   if (isLibraryConfig(raw) && (typeof raw.library !== 'string' || raw.library.length === 0)) {
     throw new Error(`Invalid plugin source : a source of type "library" requires the "library" package name.`);
+  }
+
+  if (isPathConfig(raw) && (typeof raw.path !== 'string' || raw.path.length === 0)) {
+    throw new Error(`Invalid plugin source : a source of type "path" requires the "path" directory.`);
   }
 
   if (patterns !== undefined && !Array.isArray(patterns)) {
