@@ -95,14 +95,13 @@ export interface IMCPCommandInvoker {
 /**
  * Raw input of the engine execution pipeline.
  *
- * An MCP client passes arguments as an object described by a JSON Schema, while the
- * plugin contract takes positional arguments and options (`getArguments(args, opts)`).
- * The surface that registers an entity converts one shape into the other; the pipeline
- * receives the input in the shape the plugin contract expects.
+ * An MCP client passes its arguments as one object described by the JSON Schema of the
+ * entity, and the command pipeline addresses values by the names a command declares, so the
+ * object is the input as it is: nothing is mapped back to positions. The surface that
+ * registers an entity only brings the values to the types the command declares
+ * (`entity-input.ts`); the pipeline itself is the one the CLI host runs.
  */
 export interface IMCPCommandInput {
-  /** Positional arguments in the order declared by the command. */
-  args: string[];
-  /** Options by name, as the command declares them. */
-  opts: Record<string, unknown>;
+  /** Values by the argument and option names the command declares. */
+  values: Record<string, unknown>;
 }

@@ -1,37 +1,32 @@
-import type { ICommandConfig, ICommandOption } from '@clapp/common';
+import type { ICommandOption } from '@clapp/common';
 
 import type { IMCPCommandInput, IMCPEntity } from './types';
 
 /**
- * Builds the input of the engine pipeline from the arguments an MCP client sent.
+ * Builds the input of the command pipeline from the arguments an MCP client sent.
  *
- * An MCP client passes arguments as one object described by the argument schema of the
- * entity (`_concept.md` § 6.2), while the plugin contract takes positional arguments and
- * options (`getArguments(args, opts)`). This module is that reverse mapping — the single
- * place where an MCP argument object turns back into the input of a command:
- *
- * - `args` follows the declaration order of `config.arguments`, so the command receives the
- *   values at the positions it declares. An argument the client left out keeps its position
- *   with an `undefined` value — the same value the CLI passes for an optional argument, and
- *   the reason `args` is typed `string[]` like `ICommandExecArguments`; a variadic argument
- *   spreads over consecutive positions, as its values do in the argv of the CLI.
- * - `opts` carries the options of `config.options` that the client sent: an option left out
- *   is absent, exactly as `Command.opts()` reports the options of a CLI run, so a command
- *   keeps applying its own default for it.
- *
- * A value arrives in the type the argument schema declares. The SDK validates the object of a
- * tool or prompt call before the callback of the surface sees it; the string of a resource URI
- * template is decoded into the declared type of its option here. Nothing else is interpreted:
- * the mapping copies values and never inspects their meaning.
+ * An MCP client passes its arguments as one object described by the argument schema of the
+ * entity (`_concept.md` § 6.2), and the command pipeline addresses values by the names a
+ * command declares, so the object is the input of the pipeline as it is: no value is mapped
+ * back to a position, and a value the client left out stays absent. The only work left is
+ * decoding — the variable of a resource URI template always arrives as text, and the declared
+ * type of its option decides how to read it (`toOptionValue`).
  * @param entity Entity whose command the input belongs to
  * @param input Arguments of the MCP call, empty when the client sent none
- * @returns Input of the engine pipeline
+ * @returns Input of the command pipeline
  */
-export function buildCommandInput(entity: IMCPEntity, input: unknown): IMCPCommandInput {
-  const values = toInputObject(input);
-  const { config } = entity.definition;
+export function buildCommandValues(entity: IMCPEntity, input: unknown): IMCPCommandInput {
+  const values = { ...toInputObject(input) };
 
-  return { args: buildArgs(config, values), opts: buildOpts(config, values) };
+  for (const option of entity.definition.config.options ?? []) {
+    const value = values[option.name];
+
+    if (value !== undefined) {
+      values[option.name] = toOptionValue(option, value);
+    }
+  }
+
+  return { values };
 }
 
 /**
@@ -48,71 +43,6 @@ function toInputObject(input: unknown): Record<string, unknown> {
   }
 
   return input as Record<string, unknown>;
-}
-
-/**
- * Builds the positional arguments of the pipeline input.
- *
- * A positional argument is addressed by its index, so an argument the client left out still
- * occupies its position: the command receives `undefined` there, which is what the CLI hands
- * over for an optional argument of a run.
- */
-function buildArgs(config: ICommandConfig, values: Record<string, unknown>): string[] {
-  const args: string[] = [];
-
-  for (const argument of config.arguments ?? []) {
-    const value = values[argument.name];
-
-    if (argument.variadic) {
-      pushVariadicValues(args, value);
-      continue;
-    }
-
-    args.push(value as string);
-  }
-
-  return args;
-}
-
-/**
- * Appends the values of a variadic argument to the positional arguments.
- *
- * A variadic argument takes a list of values, and in the argv of the CLI those values occupy
- * consecutive positions, so they are appended one by one. A variadic argument is expected
- * last, as the CLI declares it.
- */
-function pushVariadicValues(args: string[], value: unknown): void {
-  if (value === undefined) {
-    return;
-  }
-
-  const values = Array.isArray(value) ? value : [value];
-
-  for (const item of values) {
-    args.push(String(item));
-  }
-}
-
-/**
- * Builds the options of the pipeline input by name.
- *
- * An option name the client did not mention is left out, so the command sees exactly the
- * options of the call — the same way it sees the parsed options of a CLI run.
- */
-function buildOpts(config: ICommandConfig, values: Record<string, unknown>): Record<string, unknown> {
-  const opts: Record<string, unknown> = {};
-
-  for (const option of config.options ?? []) {
-    const value = values[option.name];
-
-    if (value === undefined) {
-      continue;
-    }
-
-    opts[option.name] = toOptionValue(option, value);
-  }
-
-  return opts;
 }
 
 /**

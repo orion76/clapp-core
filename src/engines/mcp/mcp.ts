@@ -5,27 +5,17 @@ import type { IPluginManager } from '@orion76/node-plugin';
 import { inject, injectable } from 'inversify';
 
 import {
-  applyArgumentChain,
   buildHierarchy,
-  COMMAND_ARGUMENT_MANAGER_TOKEN,
   COMMAND_MANAGER_TOKEN,
-  EVENT_BUS_TOKEN,
+  COMMAND_RUNNER_TOKEN,
   FORMATTER_MANAGER_TOKEN,
   IAppConfig,
-  IClappLifecycleMap,
   type ICommandResult,
+  type ICommandRunner,
   IEngine,
-  type IEventBus,
   type IPluginCommand,
-  type IPluginCommandArgument,
   type IPluginFormatter,
-  PLUGIN_COMMAND_TYPE,
-  resolveArgumentChain,
 } from '@clapp/common';
-
-
-
-
 
 import { APP_CONFIG_TOKEN, CLAPP_LOGGER_TOKEN } from '../../public-api';
 import { toErrorMessage } from './error-message';
@@ -41,9 +31,8 @@ import { buildServerInfo, createMCPServer } from './utils';
 export class MCPEngine implements IEngine, IMCPCommandInvoker {
   @inject(CLAPP_LOGGER_TOKEN) private readonly logger!: TLogger;
   @inject(APP_CONFIG_TOKEN) private readonly config!: IAppConfig;
-  @inject(EVENT_BUS_TOKEN) private readonly eventBus!: IEventBus<IClappLifecycleMap>;
   @inject(COMMAND_MANAGER_TOKEN) private readonly pluginManager!: IPluginManager<IPluginCommand>;
-  @inject(COMMAND_ARGUMENT_MANAGER_TOKEN) private readonly argumentManager!: IPluginManager<IPluginCommandArgument>;
+  @inject(COMMAND_RUNNER_TOKEN) private readonly commandRunner!: ICommandRunner;
   @inject(FORMATTER_MANAGER_TOKEN) private readonly formatterManager!: IPluginManager<IPluginFormatter>;
 
   /** Commands of the project grouped by the MCP surface they are exposed through. */
@@ -57,14 +46,15 @@ export class MCPEngine implements IEngine, IMCPCommandInvoker {
    * Builds the registry of the entities the surfaces expose.
    *
    * The argument chain rewrites the definitions before the registry is built: the registry
-   * carries the rewritten definition into the argument schema and into the parsing of an
+   * carries the rewritten definition into the argument schema and into the execution of an
    * MCP call, so an argument a chain step fills is advertised as optional and a client is
    * not required to send it.
    */
   async initialize(): Promise<void> {
     const commandDefinitions = await this.pluginManager.getDefinitions();
-    const chain = await resolveArgumentChain(this.argumentManager);
-    const overriddenDefinitions = commandDefinitions.map((definition) => applyArgumentChain(definition, chain));
+    const overriddenDefinitions = await Promise.all(
+      commandDefinitions.map((definition) => this.commandRunner.prepareDefinition(definition)),
+    );
     const commandNodes = buildHierarchy(overriddenDefinitions);
     const registry = buildEntityRegistry(commandNodes);
 
@@ -76,48 +66,38 @@ export class MCPEngine implements IEngine, IMCPCommandInvoker {
     serveStdio(this.serverFactory, { onerror: (error) => this.reportServerError(error) });
   }
 
+  /**
+   * Runs the command of an entity through the runner the CLI host uses as well.
+   *
+   * The entity carries the definition the argument chain has already rewritten, so the
+   * execution sees the same arguments, options and filled values as a CLI run of the command.
+   * @param entity Entity the surface registered
+   * @param input Values the client sent
+   * @returns Result of the command action, or a failed result naming why it did not run
+   */
   public async executeCommand(entity: IMCPEntity, input: IMCPCommandInput): Promise<ICommandResult> {
-    const { path, definition } = entity;
-    const { args, opts } = input;
-
     try {
-      await this.hook('command:start', path, { args, opts });
-      const plugin = await this.pluginManager.getInstance(definition.id);
-
-      if (typeof plugin.action !== 'function') {
-        throw new Error(`Command '${path}' has no action to run.`);
-      }
-
-      await this.hook('command:arguments', path, { args, opts });
-      const pluginArgs = await plugin.getArguments(args, opts);
-      await this.hook('command:run', path, { args: pluginArgs });
-      const result = await plugin.action(pluginArgs);
-
-      if (result.success === false) {
-        throw new Error(result.error?.join('; ') ?? `Command '${path}' failed`);
-      }
-
-      await this.hook('command:end', path, { result });
-
-      return result;
+      return await this.commandRunner.run(entity.definition, input);
     } catch (error) {
       this.log('Command execution error:', error, 'error');
-
-      try {
-        await this.hook('command:error', path, { error });
-      } catch (hookError) {
-        this.log('command:error hook failed:', hookError, 'error');
-      }
 
       throw error;
     }
   }
-  private hook<E extends keyof IClappLifecycleMap>(event: E, pluginId: string, data: IClappLifecycleMap[E]['data']) {
-    return this.eventBus.hook(event, { id: pluginId, type: PLUGIN_COMMAND_TYPE, data })
-  }
 
+  /**
+   * Runs the command of an entity and returns the text of its formatted result.
+   * @param entity Entity the surface registered
+   * @param input Values the client sent
+   * @returns Text of the command result, rendered with the formatter of the command
+   * @throws Error when the command reports a failed result or the formatter rejects the data
+   */
   public async invokeCommand(entity: IMCPEntity, input: IMCPCommandInput): Promise<string> {
     const result = await this.executeCommand(entity, input);
+
+    if (!result.success) {
+      throw new Error(result.error?.join('; ') ?? `Command '${entity.path}' failed`);
+    }
 
     return this.renderResult(entity, result);
   }

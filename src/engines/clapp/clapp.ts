@@ -60,13 +60,20 @@ export class CliEngine implements IEngine {
   /**
    * Renders the result of a command that declares a formatter and writes it to stdout.
    *
-   * A failed result is not formatted, and an empty formatter output is not printed.
+   * A failed result carries no data to format: its reasons go to stderr, so a run that
+   * produced nothing says why. An empty formatter output is not printed.
    * @param definition Definition of the command that produced the result
    * @param result Result returned by the command action
    */
   private async formatCommandResult(definition: IPluginCommandDefinition, result: ICommandResult): Promise<void> {
+    if (!result.success) {
+      this.reportFailure(result);
+
+      return;
+    }
+
     const { formatter } = definition;
-    if (!formatter || !result.success) {
+    if (!formatter) {
       return;
     }
 
@@ -85,7 +92,14 @@ export class CliEngine implements IEngine {
 
     process.stdout.write(output.endsWith('\n') ? output : `${output}\n`);
   }
-  //   private async hook<E extends TEventName>(event: E, pluginId: string, data: TEventArgs<E>) {
-  //   await this.eventBus.hook(event, { ...data, id: pluginId, type: PLUGIN_COMMAND_TYPE });
-  // }
+
+  /**
+   * Writes the reasons of a failed command result to stderr.
+   * @param result Result that carries the reasons in `error`
+   */
+  private reportFailure(result: ICommandResult): void {
+    for (const reason of result.error ?? []) {
+      process.stderr.write(`${reason}\n`);
+    }
+  }
 }

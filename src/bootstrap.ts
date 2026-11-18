@@ -5,7 +5,9 @@ import type { Container } from 'inversify';
 import {
   COMMAND_ARGUMENT_MANAGER_TOKEN,
   COMMAND_MANAGER_TOKEN,
+  COMMAND_RUNNER_TOKEN,
   COMMAND_SERVICE_TOKEN,
+  CommandRunner,
   CommandService,
   CONTEXT_MANAGER_TOKEN,
   EVENT_BUS_TOKEN,
@@ -51,7 +53,8 @@ import { loggerBind, loggerCollectionBind } from './utils/logger';
 function createLoaderConfig(pluginConfig: IPluginDiscoveryConfig): IClappPluginLoaderConfig {
   return {
     patterns: pluginConfig.sources.flatMap((source) => source.patterns),
-    sources: pluginConfig.sources.map((source) => ({ patterns: source.patterns })),
+    disabled: pluginConfig.disabled ?? [],
+    sources: pluginConfig.sources.map((source) => ({ patterns: source.patterns, disabled: source.disabled ?? [] })),
   };
 }
 
@@ -88,6 +91,7 @@ export async function bootstrapApp(engineClass: Type<IEngine>, container: Contai
   container.bind(EVENT_BUS_TOKEN).to(EventBus).inSingletonScope();
 
   container.bind(COMMAND_SERVICE_TOKEN).to(CommandService).inSingletonScope();
+  container.bind(COMMAND_RUNNER_TOKEN).to(CommandRunner).inSingletonScope();
   loggerCollectionBind(container);
 
   container.bind(APP_CONFIG_TOKEN).toConstantValue(config);

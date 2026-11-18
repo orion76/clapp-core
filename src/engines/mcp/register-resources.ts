@@ -2,7 +2,7 @@ import type { McpServer, ReadResourceResult, Variables } from '@modelcontextprot
 import { ResourceTemplate } from '@modelcontextprotocol/server';
 
 import { buildEntityData } from './entity-data';
-import { buildCommandInput } from './entity-input';
+import { buildCommandValues } from './entity-input';
 import { buildResourceUri, buildResourceUriTemplate, buildResourceVariables } from './resource-uri';
 import type { IMCPCommandInvoker, IMCPEntity } from './types';
 
@@ -54,7 +54,7 @@ function registerResource(server: McpServer, entity: IMCPEntity, invoker: IMCPCo
     const uri = buildResourceUri(entity.path);
 
     server.registerResource(name, uri, metadata, async (requestedUri: URL): Promise<ReadResourceResult> => {
-      const text = await invoker.invokeCommand(entity, buildCommandInput(entity, undefined));
+      const text = await invoker.invokeCommand(entity, buildCommandValues(entity, undefined));
 
       return buildReadResult(requestedUri, text);
     });
@@ -68,7 +68,7 @@ function registerResource(server: McpServer, entity: IMCPEntity, invoker: IMCPCo
   const template = new ResourceTemplate(buildResourceUriTemplate(entity.path, variables), { list: undefined });
 
   server.registerResource(name, template, metadata, async (requestedUri: URL, uriVariables: Variables) => {
-    const text = await invoker.invokeCommand(entity, buildCommandInput(entity, uriVariables));
+    const text = await invoker.invokeCommand(entity, buildCommandValues(entity, uriVariables));
 
     return buildReadResult(requestedUri, text);
   });

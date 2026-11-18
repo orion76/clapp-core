@@ -1,7 +1,7 @@
 import type { CallToolResult, McpServer } from '@modelcontextprotocol/server';
 
 import { buildEntityData } from './entity-data';
-import { buildCommandInput } from './entity-input';
+import { buildCommandValues } from './entity-input';
 import { toErrorMessage } from './error-message';
 import type { IMCPCommandInvoker, IMCPEntity } from './types';
 
@@ -43,7 +43,7 @@ function registerTool(server: McpServer, entity: IMCPEntity, invoker: IMCPComman
     { title, description, inputSchema: argumentsSchema, annotations },
     async (args: unknown): Promise<CallToolResult> => {
       try {
-        const text = await invoker.invokeCommand(entity, buildCommandInput(entity, args));
+        const text = await invoker.invokeCommand(entity, buildCommandValues(entity, args));
 
         return { content: [{ type: 'text', text }] };
       } catch (error) {

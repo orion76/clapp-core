@@ -1,7 +1,7 @@
 import type { GetPromptResult, McpServer } from '@modelcontextprotocol/server';
 
 import { buildEntityData } from './entity-data';
-import { buildCommandInput } from './entity-input';
+import { buildCommandValues } from './entity-input';
 import type { IMCPCommandInvoker, IMCPEntity } from './types';
 
 /**
@@ -37,7 +37,7 @@ function registerPrompt(server: McpServer, entity: IMCPEntity, invoker: IMCPComm
   const config = { title, description, argsSchema: argumentsSchema };
 
   server.registerPrompt(name, config, async (args: unknown): Promise<GetPromptResult> => {
-    const text = await invoker.invokeCommand(entity, buildCommandInput(entity, args));
+    const text = await invoker.invokeCommand(entity, buildCommandValues(entity, args));
 
     return { messages: [{ role: 'user', content: { type: 'text', text } }] };
   });

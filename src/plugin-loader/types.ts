@@ -8,6 +8,8 @@ export interface IClappPluginSourceConfig {
   /** Absolute module patterns of the source, resolved against the root of the source. */
   patterns: string[];
 
+  /** Plugin ids this source does not load. */
+  disabled: string[];
 }
 
 /**
@@ -23,4 +25,7 @@ export interface IClappPluginSourceConfig {
 export interface IClappPluginLoaderConfig extends IPluginLoaderConfig {
   patterns: string[];
   sources: IClappPluginSourceConfig[];
+
+  /** Plugin ids disabled for the whole type: no source of the type loads them. */
+  disabled: string[];
 }

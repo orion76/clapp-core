@@ -16,6 +16,11 @@ import { injectable } from 'inversify';
 import type { IClappPluginLoaderConfig } from './types';
 
 
+/**
+ * Loader of a clapp plugin type: it keeps the plugins of the type split by source and
+ * drops the ids a source or the whole type disables, so a disabled plugin never reaches
+ * the manager, its discovery or its instance cache.
+ */
 @InheritInjections()
 @injectable()
 export class ClappPluginLoader extends PluginLoaderFromFile {
@@ -23,11 +28,13 @@ export class ClappPluginLoader extends PluginLoaderFromFile {
 
   override async load(): Promise<IPluginDefinition[]> {
     const sources = this._config.sources ?? [];
+    const typeDisabled = new Set(this._config.disabled);
     const visited = new Set<object>();
     const definitions = new Map<string, IPluginDefinition>();
 
     for (const source of sources) {
       const modulePaths = await this.matchSource(source.patterns);
+      const sourceDisabled = new Set(source.disabled);
 
       for (const modulePath of modulePaths) {
         const namespace = await this.importModule(modulePath);
@@ -40,6 +47,11 @@ export class ClappPluginLoader extends PluginLoaderFromFile {
           const definition = getPluginDefinition(value);
 
           if (!definition) {
+            continue;
+          }
+
+          // Skipped before `visited`, so another source that does not disable the id can still load it.
+          if (typeDisabled.has(definition.id) || sourceDisabled.has(definition.id)) {
             continue;
           }
 

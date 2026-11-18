@@ -168,117 +168,115 @@ export function mergePlugins(
 
   for (const pluginType of PLUGIN_TYPES) {
     const override = overridePlugins?.[pluginType];
-    merged[pluginType] = override === undefined ? defaultPlugins[pluginType] : normalizeDiscoveryConfig(override);
+    merged[pluginType] = override === undefined ? defaultPlugins[pluginType] : normalizeDiscoveryConfig(override, pluginType);
   }
 
   return merged;
 }
 /**
- * Normalizes the discovery config of one plugin type: validates its shape and
- * fills the defaults. An absent type config becomes an empty list of sources.
+ * Normalizes the discovery config of one plugin type: validates the shape of its
+ * `sources` and `disabled` fields and fills their defaults. An absent type config
+ * becomes a type without sources and without disabled ids.
  *
  * @param raw Type config as it was read from the config file
  * @param pluginType Plugin type the config belongs to
  * @returns Normalized discovery config
  */
-function normalizeDiscoveryConfig(raw: unknown): IPluginDiscoveryConfig {
+function normalizeDiscoveryConfig(raw: unknown, pluginType: UPluginTypes): IPluginDiscoveryConfig {
   if (raw === undefined || raw === null) {
-    return { sources: [] };
+    return { sources: [], disabled: [] };
   }
 
   if (typeof raw !== 'object') {
-    throw new Error(`Invalid plugin : expected a mapping with "sources" and "disabled".`);
+    throw new Error(`Invalid plugin config of "${pluginType}": expected a mapping with "sources" and "disabled".`);
   }
 
-  const { sources } = raw as Partial<IPluginDiscoveryConfig>;
+  const { sources, disabled } = raw as Partial<IPluginDiscoveryConfig>;
 
   if (sources !== undefined && !Array.isArray(sources)) {
-    throw new Error(`Invalid plugin config : "sources" must be a list of plugin sources.`);
+    throw new Error(`Invalid plugin config of "${pluginType}": "sources" must be a list of plugin sources.`);
+  }
+
+  if (disabled !== undefined && !Array.isArray(disabled)) {
+    throw new Error(`Invalid plugin config of "${pluginType}": "disabled" must be a list of plugin ids.`);
   }
 
   return {
-    sources: (sources ?? []).map((source) => {
-      const { patterns } = normalizeSource(source);
-      return { ...source, patterns };
-    }),
+    sources: (sources ?? []).map((source, sourceIndex) => normalizeSource(source, pluginType, sourceIndex)),
+    disabled:
+      disabled === undefined ? [] : validateStringList(disabled, `"disabled" of the plugin config of "${pluginType}"`),
   };
 }
 /**
- * Validates the elements of the type-level `disabled` list of a plugin type.
- * The message names the plugin type and the index of the offending element.
- *
- * @param values Values of the list as read from the config
- * @param pluginType Plugin type the list belongs to
- * @returns Validated values
- */
-function validateTypeDisabled(values: unknown[]): string[] {
-  for (let elementIndex = 0; elementIndex < values.length; elementIndex += 1) {
-    const value = values[elementIndex];
-    if (typeof value !== 'string' || value.length === 0) {
-      const json = JSON.stringify(value);
-      throw new Error(`Invalid plugin config of : "disabled" must be a list of non-empty strings, got ${json} at index ${elementIndex}.`);
-    }
-  }
-
-  return values as string[];
-}
-/**
  * Normalizes a single source of a plugin type: validates its shape and fills the
- * defaults (empty `patterns`/`disabled`). A malformed source raises an error that
+ * defaults of `patterns` and `disabled`. A malformed source raises an error that
  * names the plugin type, the position of the source and the expected field.
  *
  * @param raw Source as it was read from the config file
  * @param pluginType Plugin type the source belongs to
- * @param index Position of the source in the `sources` list
+ * @param sourceIndex Position of the source in the `sources` list
  * @returns Normalized source
  */
-function normalizeSource(raw: UPluginSourceConfig): UPluginSourceConfig {
+function normalizeSource(raw: unknown, pluginType: UPluginTypes, sourceIndex: number): UPluginSourceConfig {
+  const where = `the plugin source ${sourceIndex} of "${pluginType}"`;
+
   if (typeof raw !== 'object' || raw === null) {
-    throw new Error(`Invalid plugin source : expected a mapping with "type" and "patterns".`);
+    throw new Error(`Invalid ${where}: expected a mapping with "type", "patterns" and "disabled".`);
   }
 
-  const { type, patterns } = raw;
+  const { type, patterns, disabled, library, path } = raw as Record<string, unknown>;
 
-  if (type === undefined || !PLUGIN_SOURCE_TYPES.includes(type)) {
-    throw new Error(`Invalid plugin source : unknown source type "${String(type)}". Expected one of: ${PLUGIN_SOURCE_TYPES.join(', ')}.`);
-  }
-
-  if (isLibraryConfig(raw) && (typeof raw.library !== 'string' || raw.library.length === 0)) {
-    throw new Error(`Invalid plugin source : a source of type "library" requires the "library" package name.`);
-  }
-
-  if (isPathConfig(raw) && (typeof raw.path !== 'string' || raw.path.length === 0)) {
-    throw new Error(`Invalid plugin source : a source of type "path" requires the "path" directory.`);
+  if (typeof type !== 'string' || !PLUGIN_SOURCE_TYPES.includes(type as UPluginSourceType)) {
+    throw new Error(`Invalid ${where}: unknown source type "${String(type)}". Expected one of: ${PLUGIN_SOURCE_TYPES.join(', ')}.`);
   }
 
   if (patterns !== undefined && !Array.isArray(patterns)) {
-    throw new Error(`Invalid plugin source : "patterns" must be a list of module patterns.`);
+    throw new Error(`Invalid ${where}: "patterns" must be a list of module patterns.`);
   }
 
-  const normalizedPatterns = patterns === undefined ? [] : validateNonEmptyStringList(patterns);
+  if (disabled !== undefined && !Array.isArray(disabled)) {
+    throw new Error(`Invalid ${where}: "disabled" must be a list of plugin ids.`);
+  }
 
-  return {
-    type,
-    patterns: normalizedPatterns,
-  };
+  const sourceType = type as UPluginSourceType;
+  const sourcePatterns = patterns === undefined ? [] : validateStringList(patterns, `"patterns" of ${where}`);
+  const sourceDisabled = disabled === undefined ? [] : validateStringList(disabled, `"disabled" of ${where}`);
+
+  switch (sourceType) {
+    case 'library':
+      if (typeof library !== 'string' || library.length === 0) {
+        throw new Error(`Invalid ${where}: a source of type "library" requires the "library" package name.`);
+      }
+
+      return { type: sourceType, library, patterns: sourcePatterns, disabled: sourceDisabled };
+    case 'path':
+      if (typeof path !== 'string' || path.length === 0) {
+        throw new Error(`Invalid ${where}: a source of type "path" requires the "path" directory.`);
+      }
+
+      return { type: sourceType, path, patterns: sourcePatterns, disabled: sourceDisabled };
+    case 'appRoot':
+    case 'project':
+      return { type: sourceType, patterns: sourcePatterns, disabled: sourceDisabled };
+  }
 }
 
 /**
- * Validates the elements of a string list field of a plugin source. Every
- * element must be a non-empty string; the error names the plugin type, the
- * position of the source and the index of the offending element, so a
- * malformed value can be located without reading the whole config.
+ * Validates the elements of a string list of a plugin config or source. Every
+ * element must be a non-empty string; the error names the place the list was read
+ * from and the index of the offending element, so a typo in a config file can be
+ * located without reading the whole file.
  *
- * @param values Values of the field as read from the config
- * @param field Name of the field (`patterns` or `disabled`)
+ * @param values Values of the list as read from the config
+ * @param where Place of the list (`"disabled" of the plugin config of "command"`)
  * @returns Validated values
  */
-function validateNonEmptyStringList(values: unknown[]): string[] {
+function validateStringList(values: unknown[], where: string): string[] {
   for (let elementIndex = 0; elementIndex < values.length; elementIndex += 1) {
     const value = values[elementIndex];
     if (typeof value !== 'string' || value.length === 0) {
       const json = JSON.stringify(value);
-      throw new Error(`Invalid plugin source : must be a list of non-empty strings, got ${json} at index ${elementIndex}.`);
+      throw new Error(`Invalid ${where}: must be a list of non-empty strings, got ${json} at index ${elementIndex}.`);
     }
   }
 
