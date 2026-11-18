@@ -50,30 +50,30 @@ name: my-cli
 description: A custom CLI built with @clapp/core
 version: 0.1.0
 plugins:
-  PLUGIN_COMMAND:
+  command:
     sources:
       # Patterns are relative to the application root.
       - type: appRoot
         patterns:
-          - plugins/commands/**/*.plugin.{js,ts}
+          - plugins/command/**/*.plugin.{js,ts}
       # Patterns are relative to the directory of the named package.
       - type: library
         library: '@clapp/ai-workflow-plugins'
         patterns:
-          - src/plugins/commands/**/*.plugin.{js,ts}
-  PLUGIN_FORMATTER:
+          - src/plugins/command/**/*.plugin.{js,ts}
+  formatter:
     sources:
       - type: library
         library: '@clapp/common'
         patterns:
-          - src/plugins/formatters/**/*.plugin.{js,ts}
+          - src/plugins/formatter/terminal/**/*.plugin.{js,ts}
 ```
 
 Третий тип источника, `project`, разрешает свои паттерны относительно корня проекта, в котором запущен лаунчер (ближайший `package.json` выше рабочей директории), и остаётся пустым, когда проекта нет.
 
 ### Разработка плагинов
 
-Команда — это плагин `PLUGIN_COMMAND`: класс с декоратором `@NodePlugin`, который несёт определение и наследует `PluginCommandBase`. Загрузчик находит его по glob-паттернам конфига, поэтому файл должен лежать в одном из объявленных каталогов источника (для проекта — `plugins/commands/**/*.plugin.ts`).
+Команда — это плагин `command` (значение `PLUGIN_COMMAND_TYPE`): класс с декоратором `@NodePlugin`, который несёт определение и наследует `PluginCommandBase`. Загрузчик находит его по glob-паттернам конфига, поэтому файл должен лежать в одном из объявленных каталогов источника (для проекта — `plugins/command/**/*.plugin.ts`).
 
 ```ts
 import { NodePlugin } from '@orion76/node-plugin';

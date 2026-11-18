@@ -54,30 +54,30 @@ name: my-cli
 description: A custom CLI built with @clapp/core
 version: 0.1.0
 plugins:
-  PLUGIN_COMMAND:
+  command:
     sources:
       # Patterns are relative to the application root.
       - type: appRoot
         patterns:
-          - plugins/commands/**/*.plugin.{js,ts}
+          - plugins/command/**/*.plugin.{js,ts}
       # Patterns are relative to the directory of the named package.
       - type: library
         library: '@clapp/ai-workflow-plugins'
         patterns:
-          - src/plugins/commands/**/*.plugin.{js,ts}
-  PLUGIN_FORMATTER:
+          - src/plugins/command/**/*.plugin.{js,ts}
+  formatter:
     sources:
       - type: library
         library: '@clapp/common'
         patterns:
-          - src/plugins/formatters/**/*.plugin.{js,ts}
+          - src/plugins/formatter/terminal/**/*.plugin.{js,ts}
 ```
 
 The third source type, `project`, resolves its patterns against the root of the project the launcher runs in (the nearest `package.json` above the working directory) and is empty when there is no project.
 
 ### Plugin development
 
-A command is a `PLUGIN_COMMAND` plugin: a class decorated with `@NodePlugin` that carries the definition and extends `PluginCommandBase`. The loader finds it by the glob patterns of the config, so the file has to live under one of the declared source directories (for a project, `plugins/commands/**/*.plugin.ts`).
+A command is a `command` plugin (the value of `PLUGIN_COMMAND_TYPE`): a class decorated with `@NodePlugin` that carries the definition and extends `PluginCommandBase`. The loader finds it by the glob patterns of the config, so the file has to live under one of the declared source directories (for a project, `plugins/command/**/*.plugin.ts`).
 
 ```ts
 import { NodePlugin } from '@orion76/node-plugin';
