@@ -16,4 +16,5 @@ export type { IMCPCommandInput, IMCPCommandInvoker, IMCPEntity, IMCPEntityRegist
 
 export * from './plugin-loader';
 export * from './utils';
+export * from './schemas';
 

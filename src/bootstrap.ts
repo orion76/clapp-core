@@ -31,10 +31,11 @@ import {
   resolveExitCode,
 } from '@clapp/common';
 import { APP_CONFIG_PATH_DEFAULT } from './constants/paths';
-import { APP_CONFIG_TOKEN, CLAPP_LOGGER_TOKEN, ENGINE_TOKEN } from './constants/tokens';
+import { APP_CONFIG_TOKEN, CLAPP_LOGGER_TOKEN, ENGINE_TOKEN, SCHEMA_REGISTRY_TOKEN } from './constants/tokens';
 
 import { ClappPluginLoader, type IClappPluginLoaderConfig } from './plugin-loader';
 import { loadConfig } from './public-api';
+import { buildSchemaRegistry } from './schemas';
 
 import { resolveProjectRoot } from '@clapp/utils';
 
@@ -132,6 +133,15 @@ export async function bootstrapApp(engineClass: Type<IEngine>, container: Contai
     { config: createLoaderConfig(config.plugins[PLUGIN_FORMATTER_TYPE]), pluginLoaderCls: ClappPluginLoader },
     container,
   );
+
+  const formatterManager = await container.getAsync(FORMATTER_MANAGER_TOKEN);
+  const formatterDefinitions = await formatterManager.getDefinitions();
+  const schemaRegistry = await buildSchemaRegistry(
+    config.schemas,
+    formatterDefinitions.map((definition) => definition.id),
+  );
+
+  container.bind(SCHEMA_REGISTRY_TOKEN).toConstantValue(schemaRegistry);
 
   const app = await container.getAsync(ENGINE_TOKEN);
 

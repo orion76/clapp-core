@@ -12,4 +12,5 @@ export const APP_CONFIG_DEFAULT: IAppConfig = {
     [PLUGIN_FORMATTER_TYPE]: { sources: [] },
   },
   loggers: APP_LOGGERS_CONFIG,
+  schemas: { sources: [], formatters: {} },
 };

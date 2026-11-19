@@ -56,7 +56,7 @@ export class MCPEngine implements IEngine, IMCPCommandInvoker {
       commandDefinitions.map((definition) => this.commandRunner.prepareDefinition(definition)),
     );
     const commandNodes = buildHierarchy(overriddenDefinitions);
-    const registry = buildEntityRegistry(commandNodes);
+    const registry = buildEntityRegistry(commandNodes, this.config.schemas.formatters);
 
     this.reportSkipped(registry.skipped);
     this.registry = registry;
@@ -123,22 +123,44 @@ export class MCPEngine implements IEngine, IMCPCommandInvoker {
     return server;
   }
 
+  /**
+   * Renders the result of an entity with the formatter the app config maps to its schema.
+   * @param entity Entity the surface registered
+   * @param result Result of the command action
+   * @returns Text of the result in the output format of the host
+   * @throws Error when the schema of the entity has no formatter or the formatter rejects the data
+   */
   private async renderResult(entity: IMCPEntity, result: ICommandResult): Promise<string> {
-    try {
-      const formatter = await this.resolveFormatter(entity.formatter);
+    const formatter = await this.resolveFormatter(entity.dataSchema);
 
+    try {
       return await formatter.format(result.data);
     } catch (error) {
-      throw new Error(`Command '${entity.path}': formatter '${entity.formatter}' failed: ${toErrorMessage(error)}`);
+      throw new Error(
+        `Command '${entity.path}': formatter '${formatter.definition.id}' failed: ${toErrorMessage(error)}`,
+      );
     }
   }
 
-  private async resolveFormatter(formatterId: string): Promise<IPluginFormatter> {
+  /**
+   * Resolves the formatter the app config maps to a data schema.
+   * @param dataSchema `$id` of the schema that describes the data of the command
+   * @returns Formatter plugin registered for the schema
+   * @throws Error when the schema has no formatter in `schemas.formatters` or the formatter is
+   * not among the loaded plugins
+   */
+  private async resolveFormatter(dataSchema: string): Promise<IPluginFormatter> {
+    const formatterId = this.config.schemas.formatters[dataSchema];
+
+    if (formatterId === undefined) {
+      throw new Error(`data schema '${dataSchema}' has no formatter in "schemas.formatters"`);
+    }
+
     const definitions = await this.formatterManager.getDefinitions();
 
     if (!definitions.some((definition) => definition.id === formatterId)) {
       throw new Error(
-        `formatter '${formatterId}' is not available: no formatter plugin with this identifier is registered`,
+        `formatter '${formatterId}' mapped to data schema '${dataSchema}' is not available: no formatter plugin with this identifier is registered`,
       );
     }
 

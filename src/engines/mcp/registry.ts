@@ -4,22 +4,46 @@ import { buildEntityPath } from './entity-path';
 import type { IMCPEntity, IMCPEntityRegistry } from './types';
 
 
-export function buildEntityRegistry(nodes: ICommandNode[]): IMCPEntityRegistry {
+/**
+ * Builds the registry of the entities the surfaces expose.
+ *
+ * A command becomes an entity only when it names its data shape with `dataSchema` and the
+ * app config maps that schema to a formatter: a surface renders a result as text, so a
+ * command that cannot be rendered is left out with the reason instead of failing a call.
+ * @param nodes Commands of the application as a hierarchy
+ * @param formatters Formatter plugin ids by the `$id` of the data schema they render
+ * @returns Registry of the entities by surface, plus the commands left out with their reasons
+ */
+export function buildEntityRegistry(nodes: ICommandNode[], formatters: Readonly<Record<string, string>>): IMCPEntityRegistry {
   const registry: IMCPEntityRegistry = { tools: [], resources: [], prompts: [], skipped: [] };
 
-  collectEntities(nodes, '', registry);
+  collectEntities(nodes, '', registry, formatters);
 
   return registry;
 }
 
-function collectEntities(nodes: ICommandNode[], prefix: string, registry: IMCPEntityRegistry): void {
+/**
+ * Walks the hierarchy and puts every leaf command that a surface can render into the registry
+ * of its kind. A node with children is a group: it only carries the path prefix and never
+ * becomes an entity itself.
+ * @param nodes Nodes of the hierarchy to walk
+ * @param prefix Path of the parent nodes
+ * @param registry Registry the entities and the skipped commands are collected in
+ * @param formatters Formatter plugin ids by the `$id` of the data schema they render
+ */
+function collectEntities(
+  nodes: ICommandNode[],
+  prefix: string,
+  registry: IMCPEntityRegistry,
+  formatters: Readonly<Record<string, string>>,
+): void {
   for (const node of nodes) {
     const { definition } = node;
-    const { command, kind, formatter } = definition;
+    const { command, kind, dataSchema } = definition;
     const path = buildEntityPath(prefix, command);
 
     if (node.children.length > 0) {
-      collectEntities(node.children, path, registry);
+      collectEntities(node.children, path, registry, formatters);
       continue;
     }
 
@@ -28,12 +52,21 @@ function collectEntities(nodes: ICommandNode[], prefix: string, registry: IMCPEn
       continue;
     }
 
-    if (!formatter) {
-      registry.skipped.push({ path, definition, reason: 'no formatter declared' });
+    if (!dataSchema) {
+      registry.skipped.push({ path, definition, reason: 'no data schema declared' });
       continue;
     }
 
-    surface(registry, kind).push({ path, kind, formatter, definition });
+    if (formatters[dataSchema] === undefined) {
+      registry.skipped.push({
+        path,
+        definition,
+        reason: `data schema '${dataSchema}' has no formatter in "schemas.formatters"`,
+      });
+      continue;
+    }
+
+    surface(registry, kind).push({ path, kind, dataSchema, definition });
   }
 }
 

@@ -1,4 +1,13 @@
-import { IAppConfig, PLUGIN_COMMAND_ARGUMENT_TYPE, PLUGIN_COMMAND_TYPE, PLUGIN_CONTEXT_TYPE, PLUGIN_FORMATTER_TYPE, TCliConfigCustom, UPluginTypes } from '@clapp/common';
+import {
+  IAppConfig,
+  ISchemaConfig,
+  PLUGIN_COMMAND_ARGUMENT_TYPE,
+  PLUGIN_COMMAND_TYPE,
+  PLUGIN_CONTEXT_TYPE,
+  PLUGIN_FORMATTER_TYPE,
+  TCliConfigCustom,
+  UPluginTypes,
+} from '@clapp/common';
 import { existsSync, realpathSync } from 'fs';
 import { isAbsolute, resolve } from 'node:path';
 import { join } from 'path';
@@ -38,18 +47,19 @@ function mergeConfigs(defaultConfig: IAppConfig, customConfig: TCliConfigCustom)
     ...customConfig,
     plugins: mergePlugins(defaultConfig.plugins, customConfig.plugins),
     loggers: { ...defaultConfig.loggers, ...customConfig.loggers },
+    schemas: mergeSchemas(defaultConfig.schemas, customConfig.schemas),
   };
 }
 
 /**
- * Resolves the sources of every plugin type of a config against the root of
- * their own source: `appRoot` against the application root, `path` against the
- * directory it names, `library` against the directory of the named package and
- * `project` against the root of the context project (empty when not found).
+ * Resolves the sources of every plugin type and of the schema section against the root of
+ * their own source: `appRoot` against the application root, `path` against the directory it
+ * names, `library` against the directory of the named package and `project` against the root
+ * of the context project (empty when not found).
  *
  * @param appRoot Application root used as the base of `appRoot` and `path` sources
- * @param config CLI configuration whose plugin sources are resolved
- * @returns Configuration with resolved plugin source patterns
+ * @param config CLI configuration whose plugin and schema sources are resolved
+ * @returns Configuration with resolved source patterns
  */
 function resolveConfigPatterns(config: IAppConfig, appRoot: string, projectRoot?: string): IAppConfig {
   return {
@@ -59,6 +69,10 @@ function resolveConfigPatterns(config: IAppConfig, appRoot: string, projectRoot?
       [PLUGIN_COMMAND_ARGUMENT_TYPE]: resolveTypePatterns(config.plugins[PLUGIN_COMMAND_ARGUMENT_TYPE], appRoot, projectRoot),
       [PLUGIN_CONTEXT_TYPE]: resolveTypePatterns(config.plugins[PLUGIN_CONTEXT_TYPE], appRoot, projectRoot),
       [PLUGIN_FORMATTER_TYPE]: resolveTypePatterns(config.plugins[PLUGIN_FORMATTER_TYPE], appRoot, projectRoot),
+    },
+    schemas: {
+      ...config.schemas,
+      sources: resolveSources(config.schemas.sources, appRoot, projectRoot),
     },
   };
 }
@@ -74,7 +88,24 @@ function resolveConfigPatterns(config: IAppConfig, appRoot: string, projectRoot?
  * @returns Discovery config with resolved source patterns
  */
 function resolveTypePatterns(pluginConfig: IPluginDiscoveryConfig, appRoot: string, projectRoot?: string): IPluginDiscoveryConfig {
-  const sources = pluginConfig.sources.map((source) => {
+  return {
+    ...pluginConfig,
+    sources: resolveSources(pluginConfig.sources, appRoot, projectRoot),
+  };
+}
+
+/**
+ * Resolves the patterns of every source against the root of that source. The sources of the
+ * schema section are resolved by the same mechanism as the sources of a plugin type, so a
+ * host declares a directory of schema files exactly as it declares a directory of plugins.
+ *
+ * @param sources Sources of a plugin type or of the schema section
+ * @param appRoot Application root used as the base of `appRoot` and `path` sources
+ * @param projectRoot Root of the context project, absent when there is no project
+ * @returns Sources with resolved patterns
+ */
+function resolveSources(sources: UPluginSourceConfig[], appRoot: string, projectRoot?: string): UPluginSourceConfig[] {
+  return sources.map((source) => {
     let patterns: string[] = [];
     switch (source.type) {
       case 'appRoot':
@@ -104,11 +135,6 @@ function resolveTypePatterns(pluginConfig: IPluginDiscoveryConfig, appRoot: stri
 
     return { ...source, patterns };
   });
-
-  return {
-    ...pluginConfig,
-    sources,
-  };
 }
 
 function resolveLibraryPatterns(appRoot: string, library: string, patterns: string[]) {
@@ -173,6 +199,81 @@ export function mergePlugins(
 
   return merged;
 }
+
+/**
+ * Merges the schema section of a config override over the default one: a declared section
+ * replaces the default entirely, an absent one keeps the default.
+ *
+ * @param defaultSchemas Schema section of the default config
+ * @param overrideSchemas Schema section of the override, if any
+ * @returns Merged schema section
+ */
+function mergeSchemas(defaultSchemas: ISchemaConfig, overrideSchemas: ISchemaConfig | undefined): ISchemaConfig {
+  return overrideSchemas === undefined ? defaultSchemas : normalizeSchemaConfig(overrideSchemas);
+}
+
+/**
+ * Normalizes the schema section: validates the shape of its `sources` and `formatters`
+ * fields and fills their defaults. An absent section becomes a section without sources and
+ * without formatter mappings.
+ *
+ * @param raw Schema section as it was read from the config file
+ * @returns Normalized schema section
+ */
+function normalizeSchemaConfig(raw: unknown): ISchemaConfig {
+  if (raw === undefined || raw === null) {
+    return { sources: [], formatters: {} };
+  }
+
+  if (typeof raw !== 'object') {
+    throw new Error('Invalid "schemas" section: expected a mapping with "sources" and "formatters".');
+  }
+
+  const { sources, formatters } = raw as Partial<ISchemaConfig>;
+
+  if (sources !== undefined && !Array.isArray(sources)) {
+    throw new Error('Invalid "schemas" section: "sources" must be a list of schema sources.');
+  }
+
+  return {
+    sources: (sources ?? []).map((source, sourceIndex) =>
+      normalizeSource(source, `the source ${sourceIndex} of "schemas"`),
+    ),
+    formatters: formatters === undefined ? {} : normalizeFormatters(formatters),
+  };
+}
+
+/**
+ * Validates the `formatters` map of the schema section: every key is the `$id` of a schema
+ * and every value is the id of the formatter plugin that renders its data.
+ *
+ * @param raw Map as it was read from the config file
+ * @returns Validated map of formatter ids by schema id
+ */
+function normalizeFormatters(raw: unknown): Record<string, string> {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error('Invalid "formatters" of the "schemas" section: expected a mapping of schema ids to formatter ids.');
+  }
+
+  const formatters: Record<string, string> = {};
+
+  for (const [schemaId, formatterId] of Object.entries(raw)) {
+    if (schemaId.length === 0) {
+      throw new Error('Invalid "formatters" of the "schemas" section: a schema id must be a non-empty string.');
+    }
+
+    if (typeof formatterId !== 'string' || formatterId.length === 0) {
+      throw new Error(
+        `Invalid "formatters" of the "schemas" section: schema "${schemaId}" must map to a non-empty formatter id, got ${JSON.stringify(formatterId)}.`,
+      );
+    }
+
+    formatters[schemaId] = formatterId;
+  }
+
+  return formatters;
+}
+
 /**
  * Normalizes the discovery config of one plugin type: validates the shape of its
  * `sources` and `disabled` fields and fills their defaults. An absent type config
@@ -202,24 +303,23 @@ function normalizeDiscoveryConfig(raw: unknown, pluginType: UPluginTypes): IPlug
   }
 
   return {
-    sources: (sources ?? []).map((source, sourceIndex) => normalizeSource(source, pluginType, sourceIndex)),
+    sources: (sources ?? []).map((source, sourceIndex) =>
+      normalizeSource(source, `the plugin source ${sourceIndex} of "${pluginType}"`),
+    ),
     disabled:
       disabled === undefined ? [] : validateStringList(disabled, `"disabled" of the plugin config of "${pluginType}"`),
   };
 }
 /**
- * Normalizes a single source of a plugin type: validates its shape and fills the
- * defaults of `patterns` and `disabled`. A malformed source raises an error that
- * names the plugin type, the position of the source and the expected field.
+ * Normalizes a single source of a plugin type or of the schema section: validates its shape
+ * and fills the defaults of `patterns` and `disabled`. A malformed source raises an error
+ * that names the place the source was read from and the expected field.
  *
  * @param raw Source as it was read from the config file
- * @param pluginType Plugin type the source belongs to
- * @param sourceIndex Position of the source in the `sources` list
+ * @param where Place of the source (`the plugin source 0 of "command"`)
  * @returns Normalized source
  */
-function normalizeSource(raw: unknown, pluginType: UPluginTypes, sourceIndex: number): UPluginSourceConfig {
-  const where = `the plugin source ${sourceIndex} of "${pluginType}"`;
-
+function normalizeSource(raw: unknown, where: string): UPluginSourceConfig {
   if (typeof raw !== 'object' || raw === null) {
     throw new Error(`Invalid ${where}: expected a mapping with "type", "patterns" and "disabled".`);
   }

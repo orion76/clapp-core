@@ -3,19 +3,15 @@ import type { StandardSchemaWithJSON, ToolAnnotations } from '@modelcontextproto
 import type { IPluginCommandDefinition, UCommandKind } from '@clapp/common';
 
 /**
- * Command exposed through an MCP surface.
- *
- * Only a leaf command becomes an entity: a group node is a container that carries
- * the path prefix of its subcommands and is never an entity of its own. `path` is
- * the full path of the command in the hierarchy — the `command` segments of its
- * nodes joined with `/` (`board/list`) — and is the name an MCP client sees. `formatter` is never empty,
- * because the surface renders the result of a command with its formatter, and a
- * command without one is left out of the registry.
+ * Command exposed through an MCP surface: a leaf command whose data schema the app config
+ * maps to a formatter. `path` is the full path in the hierarchy (`board/list`), the name an
+ * MCP client sees; `dataSchema` is never empty, because a command that cannot be rendered is
+ * left out of the registry. A group node only carries the path prefix of its subcommands.
  */
 export interface IMCPEntity {
   path: string;
   kind: UCommandKind;
-  formatter: string;
+  dataSchema: string;
   definition: IPluginCommandDefinition;
 }
 
@@ -76,18 +72,16 @@ export interface IMCPEntityData {
 /**
  * Runner the surfaces of the engine invoke a command through.
  *
- * A surface registers the entities of its kind with callbacks that receive an argument object
- * from an MCP client. The runner is the narrow view of the engine those callbacks use: it
- * turns the object into the input of the pipeline, runs the command and renders its result
- * with the formatter the command declares. Every surface therefore returns the same text of a
- * command result, and no surface knows how that text is produced.
+ * A surface hands the argument object of an MCP client to the runner, which runs the command
+ * through the pipeline and renders the result with the formatter mapped to its data schema,
+ * so every surface returns the same text and no surface knows how that text is produced.
  */
 export interface IMCPCommandInvoker {
   /**
    * Runs the command of an entity and returns the text of its formatted result.
    * @param entity Entity the surface registered
    * @param input Raw command input (positional arguments and options)
-   * @returns Text of the command result, rendered with the formatter of the command
+   * @returns Text of the command result, rendered with the formatter mapped to the data schema
    */
   invokeCommand(entity: IMCPEntity, input: IMCPCommandInput): Promise<string>;
 }
