@@ -8,6 +8,7 @@
     "allowJs": true,
     "paths": {
       "@clapp/common": ["../common/src/public-api.ts"],
+      "@clapp/utils": ["../utils/src/public-api.ts"],
       "@orion76/plugin": ["../../../@orion76/projects/plugin/src/public-api.ts"],
       "@orion76/node-plugin": ["../../../@orion76/projects/node-plugin/src/public-api.ts"],
       "@orion76/logger": ["../../../@orion76/projects/logger/src/public-api.ts"]
